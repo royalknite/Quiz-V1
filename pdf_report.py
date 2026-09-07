@@ -287,12 +287,15 @@ def _render_question_card(pdf: QuizReportPDF,
     correct_id = q.get("correct_option_id")
     card_h = _q_card_height(pdf, q, card_w)
 
-    # White card + blue left accent.
+    # White question card with a subtle rounded light-gray border.
+    # Keep the blue vertical accent from the existing design.
     pdf.set_fill_color(255, 255, 255)
+    pdf.set_draw_color(215, 219, 226)
+    pdf.set_line_width(0.55)
     try:
-        pdf.rounded_rect(x, y, card_w, card_h, 2.5, style="F")
+        pdf.rounded_rect(x, y, card_w, card_h, 3.0, style="DF")
     except Exception:
-        pdf.rect(x, y, card_w, card_h, style="F")
+        pdf.rect(x, y, card_w, card_h, style="DF")
 
     pdf.set_draw_color(30, 86, 190)
     pdf.set_line_width(1.25)
@@ -364,11 +367,12 @@ def _render_question_card(pdf: QuizReportPDF,
         exp_body_h = _text_height(pdf, exp, text_w, 4.5)
         exp_h = 8.0 + exp_body_h + 5.0
 
+        # Rounded pale-yellow explanation strip, matching the reference.
         pdf.set_fill_color(255, 249, 204)
         pdf.set_draw_color(245, 196, 35)
-        pdf.set_line_width(0.7)
+        pdf.set_line_width(0.65)
         try:
-            pdf.rounded_rect(ex, cy, ew, exp_h, 2.0, style="DF")
+            pdf.rounded_rect(ex, cy, ew, exp_h, 2.5, style="DF")
         except Exception:
             pdf.rect(ex, cy, ew, exp_h, style="DF")
         pdf.set_line_width(0.2)
