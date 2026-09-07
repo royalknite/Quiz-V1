@@ -305,7 +305,7 @@ def _render_question_card(pdf: QuizReportPDF,
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("Noto", "B", 9)
     try:
-        pdf.rounded_rect(inner_x, y + 4.0, badge_w, badge_h, 2.5, style="F")
+        pdf.rounded_rect(inner_x, y + 4.0, badge_w, badge_h, 1.5, style="F")
     except Exception:
         pdf.rect(inner_x, y + 4.0, badge_w, badge_h, style="F")
     pdf.set_xy(inner_x, y + 4.2)
@@ -326,7 +326,7 @@ def _render_question_card(pdf: QuizReportPDF,
         is_correct = (i == correct_id)
         ox = inner_x + 2
         ow = inner_w - 4
-        oh = max(7.0, _text_height(pdf, opt or "", ow - 14, 5.1) + 2.0)
+        oh = max(5.5, _text_height(pdf, opt or "", ow - 14, 5.1))
 
         if is_correct:
             pdf.set_fill_color(239, 252, 244)
@@ -368,10 +368,14 @@ def _render_question_card(pdf: QuizReportPDF,
         pdf.set_draw_color(245, 196, 35)
         pdf.set_line_width(0.7)
         try:
-            pdf.rounded_rect(ex, cy, ew, exp_h, 2.5, style="DF")
+            pdf.rounded_rect(ex, cy, ew, exp_h, 1.5, style="DF")
         except Exception:
             pdf.rect(ex, cy, ew, exp_h, style="DF")
         pdf.set_line_width(0.2)
+
+        # Yellow left-side accent stripe for the explanation box.
+        pdf.set_fill_color(245, 196, 35)
+        pdf.rect(ex, cy, 1.2, exp_h, style="F")
 
         # Explanation label + Hindi body, matching the supplied reference.
         pdf.set_xy(text_x, cy + 2.2)
