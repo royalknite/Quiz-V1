@@ -233,167 +233,179 @@ def _write_page1(pdf: QuizReportPDF,
 
 
 # ── Q&A rendering helpers ─────────────────────────────────────────────────────
-
 def _draw_qa_page_header(pdf: QuizReportPDF) -> None:
-    """Thin stripe at top of every Q&A page."""
+    """Small top stripe; question cards remain the main focus."""
     pdf.set_fill_color(20, 80, 170)
-    pdf.rect(0, 0, PAGE_W, 8, style="F")
-    pdf.set_xy(M_L, 1)
-    pdf.set_font("Noto", "B", 7)
-    pdf.set_text_color(255, 255, 255)
-    pdf.cell(PRINT_W // 2, 6, pdf.quiz_name[:60], align="L")
-    pdf.set_x(PAGE_W - M_R - PRINT_W // 2)
-    pdf.cell(PRINT_W // 2, 6, pdf.channel, align="R")
-    pdf.set_text_color(0, 0, 0)
+    pdf.rect(0, 0, PAGE_W, 5, style="F")
 
 
-def _multi_cell_in_col(pdf: QuizReportPDF, x: float, y: float,
-                        w: float, h: float, txt: str,
-                        fill: bool = False) -> float:
-    """
-    multi_cell wrapper that temporarily sets the page left-margin to *x* so
-    that every wrapped continuation line stays inside the column instead of
-    jumping back to the global left margin (M_L).  Returns the new y.
-    """
-    pdf.set_left_margin(x)
-    pdf.set_xy(x, y)
-    pdf.multi_cell(w, h, txt, fill=fill)
-    pdf.set_left_margin(M_L)      # restore global left margin
-    return pdf.get_y()
+def _text_height(pdf: QuizReportPDF, text: str, width: float, line_h: float) -> float:
+    """Measure wrapped text height without changing the document."""
+    if not text:
+        return line_h
+    try:
+        lines = pdf.multi_cell(width, line_h, text, dry_run=True, output="LINES")
+        return max(1, len(lines)) * line_h
+    except Exception:
+        chars = max(8, int(width * 3.2))
+        lines = sum(max(1, math.ceil(len(p) / chars)) for p in text.split("\n"))
+        return lines * line_h
 
 
-def _render_question(pdf: QuizReportPDF,
-                     q: Dict,
-                     idx: int,
-                     col: int,
-                     y: float,
-                     col_w: float) -> float:
-    """
-    Render question *idx* into column *col* starting at y-coordinate *y*.
-    Returns the new y after rendering (within the same column).
-    No page-break logic here — caller handles that.
-    """
-    x0 = COL_X[col]
-
-    # ── Question label + text ─────────────────────────────────────────────
-    q_text = _strip_html(q.get("question") or "")
-    label_w = 9
-
-    pdf.set_xy(x0, y)
-    pdf.set_font("Noto", "B", 9)
-    pdf.set_text_color(20, 80, 170)
-    pdf.cell(label_w, 6, f"Q{idx}.")
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font("Noto", "", 9)
-    # Question text starts after the "Qn." label — pin left margin to that x
-    # so any wrapped lines stay inside the column (not jump to global M_L).
-    y = _multi_cell_in_col(pdf, x0 + label_w, y, col_w - label_w, 5.5,
-                            q_text or "(no question text)")
-    y += 1
-
-    # ── Options ───────────────────────────────────────────────────────────
+def _q_card_height(pdf: QuizReportPDF, q: Dict, card_w: float) -> float:
+    """Estimate the complete height of one question card."""
+    q_text = _strip_html(q.get("question") or "") or "(no question text)"
     opts = [_strip_html(o) for o in (q.get("options") or [])]
-    correct_id = q.get("correct_option_id")
+    exp = _strip_html(q.get("explanation") or "")
+    inner_w = card_w - 10
 
+    h = 6.5
+    h += max(7.0, _text_height(pdf, q_text, inner_w - 23, 5.4))
+    h += 2.5
+    for opt in opts:
+        h += max(7.0, _text_height(pdf, opt or "", inner_w - 16, 5.1)) + 1.5
+    if exp:
+        h += 3.0
+        h += 7.0 + _text_height(pdf, exp, inner_w - 16, 4.5) + 5.0
+    h += 5.0
+    return h
+
+
+def _render_question_card(pdf: QuizReportPDF,
+                         q: Dict,
+                         idx: int,
+                         y: float,
+                         card_w: float) -> float:
+    """Render one full-width question card matching the supplied reference."""
+    x = M_L
+    inner_x = x + 5
+    inner_w = card_w - 10
+
+    q_text = _strip_html(q.get("question") or "") or "(no question text)"
+    opts = [_strip_html(o) for o in (q.get("options") or [])]
+    exp = _strip_html(q.get("explanation") or "")
+    correct_id = q.get("correct_option_id")
+    card_h = _q_card_height(pdf, q, card_w)
+
+    # White card + blue left accent.
+    pdf.set_fill_color(255, 255, 255)
+    try:
+        pdf.rounded_rect(x, y, card_w, card_h, 2.5, style="F")
+    except Exception:
+        pdf.rect(x, y, card_w, card_h, style="F")
+
+    pdf.set_draw_color(30, 86, 190)
+    pdf.set_line_width(1.25)
+    pdf.line(x + 1.0, y + 2.0, x + 1.0, y + card_h - 2.0)
+    pdf.set_line_width(0.2)
+
+    # Blue Q-number badge.
+    badge_w, badge_h = 13, 7.5
+    pdf.set_fill_color(28, 88, 196)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Noto", "B", 9)
+    try:
+        pdf.rounded_rect(inner_x, y + 4.0, badge_w, badge_h, 2.0, style="F")
+    except Exception:
+        pdf.rect(inner_x, y + 4.0, badge_w, badge_h, style="F")
+    pdf.set_xy(inner_x, y + 4.2)
+    pdf.cell(badge_w, 6.5, f"Q{idx}", align="C")
+
+    # Question text.
+    qx = inner_x + badge_w + 3.5
+    qw = inner_w - badge_w - 3.5
+    pdf.set_xy(qx, y + 3.5)
+    pdf.set_font("NotoDeva", "B", 10.2)
+    pdf.set_text_color(20, 20, 20)
+    pdf.multi_cell(qw, 5.4, q_text)
+    cy = max(pdf.get_y(), y + 12.0) + 2.5
+
+    # Options.
     for i, opt in enumerate(opts):
         letter = OPTION_LETTERS[i] if i < len(OPTION_LETTERS) else str(i + 1)
         is_correct = (i == correct_id)
+        ox = inner_x + 2
+        ow = inner_w - 4
+        oh = max(7.0, _text_height(pdf, opt or "", ow - 14, 5.1) + 2.0)
 
         if is_correct:
-            pdf.set_fill_color(220, 245, 220)   # light green background
-            pdf.set_text_color(0, 110, 0)        # dark green text
-            pdf.set_font("Noto", "B", 9)
+            pdf.set_fill_color(239, 252, 244)
+            pdf.set_text_color(21, 154, 85)
+            try:
+                pdf.rounded_rect(ox, cy, ow, oh, 1.6, style="F")
+            except Exception:
+                pdf.rect(ox, cy, ow, oh, style="F")
+            font_style = "B"
         else:
             pdf.set_fill_color(255, 255, 255)
-            pdf.set_text_color(50, 50, 50)
-            pdf.set_font("Noto", "", 9)
+            pdf.set_text_color(45, 45, 45)
+            font_style = ""
 
-        # Render letter + option text together; pin left margin to option x
-        # so wrapped lines don't bleed into the opposite column.
-        y = _multi_cell_in_col(pdf, x0 + 2, y, col_w - 2, 5.5,
-                                f"{letter}) {opt or ''}", fill=is_correct)
+        pdf.set_font("NotoDeva", font_style, 9.3)
+        pdf.set_xy(ox + 2, cy + 0.7)
+        pdf.cell(10, 5.5, f"{letter})", align="L")
+        pdf.set_xy(ox + 12, cy + 0.7)
+        pdf.multi_cell(ow - 14, 5.1, opt or "")
+        cy += oh + 1.0
 
-    # reset colors
-    pdf.set_fill_color(255, 255, 255)
-    pdf.set_text_color(0, 0, 0)
-
-    # ── Explanation ───────────────────────────────────────────────────────
-    exp = _strip_html(q.get("explanation") or "")
+    # Yellow explanation box.
     if exp:
-        y += 1
-        pdf.set_font("Noto", "", 8)
-        pdf.set_fill_color(255, 250, 230)
-        pdf.set_text_color(80, 60, 0)
-        y = _multi_cell_in_col(pdf, x0, y, col_w, 4.5,
-                                "Explanation: " + exp, fill=True)
-        pdf.set_text_color(0, 0, 0)
-        pdf.set_fill_color(255, 255, 255)
+        cy += 2.0
+        ex = inner_x + 1
+        ew = inner_w - 2
+        text_x = ex + 5
+        text_w = ew - 10
+        exp_body_h = _text_height(pdf, exp, text_w, 4.5)
+        exp_h = 8.0 + exp_body_h + 5.0
 
-    y += 2
+        pdf.set_fill_color(255, 249, 204)
+        pdf.set_draw_color(245, 196, 35)
+        pdf.set_line_width(0.7)
+        try:
+            pdf.rounded_rect(ex, cy, ew, exp_h, 2.0, style="DF")
+        except Exception:
+            pdf.rect(ex, cy, ew, exp_h, style="DF")
+        pdf.set_line_width(0.2)
 
-    # ── Divider line ──────────────────────────────────────────────────────
-    pdf.set_draw_color(200, 200, 200)
-    pdf.line(x0, y, x0 + col_w, y)
+        pdf.set_xy(text_x, cy + 2.0)
+        pdf.set_font("NotoDeva", "B", 9.3)
+        pdf.set_text_color(116, 76, 18)
+        pdf.cell(text_w, 5.0, "Explanation:")
+        pdf.set_xy(text_x, pdf.get_y() + 1.0)
+        pdf.set_font("NotoDeva", "", 8.6)
+        pdf.multi_cell(text_w, 4.5, exp)
+        cy = max(cy + exp_h, pdf.get_y())
+
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_fill_color(255, 255, 255)
     pdf.set_draw_color(0, 0, 0)
-    y += 2
+    return y + card_h
 
-    return y
-
-
-# ── Main writer ───────────────────────────────────────────────────────────────
 
 def _write_qa_pages(pdf: QuizReportPDF, questions: List[Dict]) -> None:
-    """Write all questions in a 2-column layout across as many pages as needed."""
-
-    # Start new page
+    """Write questions as full-width cards, one below another."""
     pdf.add_page()
     _draw_qa_page_header(pdf)
 
-    # "QUESTIONS & ANSWERS" heading on first Q&A page
-    heading_y = QA_TOP_Y
-    pdf.set_xy(M_L, heading_y)
-    pdf.set_font("Noto", "B", 11)
-    pdf.set_text_color(20, 80, 170)
-    pdf.cell(0, 7, "QUESTIONS & ANSWERS")
-    pdf.set_text_color(0, 0, 0)
-    heading_y += 9
-
-    # Column state
-    col       = 0                 # 0 = left, 1 = right
-    col_y     = [heading_y, QA_TOP_Y]   # current y for each column
-    first_page = True
+    y = 12.0
+    card_w = PRINT_W
+    bottom = PAGE_H - M_BOT - 4
 
     for idx, q in enumerate(questions, start=1):
         try:
-            est = _q_height_estimate(q, COL_W)
+            needed = _q_card_height(pdf, q, card_w)
         except Exception:
-            est = 40
+            needed = 70.0
 
-        # If question doesn't fit in current column → next column or new page
-        if col_y[col] + est > QA_BOTTOM_Y:
-            if col == 0:
-                # Switch to right column (same page)
-                col = 1
-            else:
-                # Both columns full → new page
-                pdf.add_page()
-                _draw_qa_page_header(pdf)
-                col = 0
-                col_y = [QA_TOP_Y, QA_TOP_Y]
-                first_page = False
+        if y > 12.0 and y + needed > bottom:
+            pdf.add_page()
+            _draw_qa_page_header(pdf)
+            y = 12.0
 
-        # Render the question
         try:
-            new_y = _render_question(pdf, q, idx, col, col_y[col], COL_W)
-            col_y[col] = new_y
-        except Exception as e:
-            # Skip broken question but continue — never abort the whole PDF
-            col_y[col] += 5
-
-    # Draw vertical separator line between columns on the last page
-    # (also drawn on every page — we do it during page creation is complex,
-    #  so we draw it at the end only if both columns were used on last page)
-
+            y = _render_question_card(pdf, q, idx, y, card_w) + 5.0
+        except Exception:
+            y += 10.0
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
