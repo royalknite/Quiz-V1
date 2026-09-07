@@ -84,7 +84,7 @@ def _q_height_estimate(q: Dict, col_w: float) -> float:
     h += 6.5 + (_line_count(q_text, col_w - 9) - 1) * 5.5  # question text
     h += 1.5                                                 # gap
     for opt in opts:
-        h += 5.0 + (_line_count(opt, col_w - 2) - 1) * 4.5
+        h += 5.0 + (_line_count(opt, col_w - 2) - 1) * 4.5 + 1.5
     if exp:
         h += 2.0
         h += _line_count(exp, col_w - 4) * 4.5
@@ -262,7 +262,7 @@ def _q_card_height(pdf: QuizReportPDF, q: Dict, card_w: float) -> float:
     h += max(7.0, _text_height(pdf, q_text, inner_w - 23, 5.4))
     h += 2.5
     for opt in opts:
-        h += max(5.5, _text_height(pdf, opt or "", inner_w - 10, 5.1))
+        h += max(5.5, _text_height(pdf, opt or "", inner_w - 14, 5.1)) + 1.5
     if exp:
         h += 3.0
         h += 7.0 + _text_height(pdf, exp, inner_w - 16, 4.5) + 5.0
@@ -298,7 +298,7 @@ def _render_question_card(pdf: QuizReportPDF,
     pdf.line(x + 1.0, y + 2.0, x + 1.0, y + card_h - 2.0)
     pdf.set_line_width(0.2)
 
-    # Blue Q-number badge (rounded rectangle format).
+    # Blue Q-number badge.
     badge_w, badge_h = 13, 7.5
     pdf.set_fill_color(28, 88, 196)
     pdf.set_text_color(255, 255, 255)
@@ -319,36 +319,37 @@ def _render_question_card(pdf: QuizReportPDF,
     pdf.multi_cell(qw, 5.4, q_text)
     cy = max(pdf.get_y(), y + 12.0) + 2.5
 
-    # Options (brackets removed, text properly aligned right next to option letters).
+    # Options (all option boxes rendered as rounded cards/pills).
     for i, opt in enumerate(opts):
         letter = OPTION_LETTERS[i] if i < len(OPTION_LETTERS) else str(i + 1)
         is_correct = (i == correct_id)
         ox = inner_x + 2
         ow = inner_w - 4
-        oh = max(5.1, _text_height(pdf, opt or "", ow - 8, 5.1))
+        oh = max(5.1, _text_height(pdf, opt or "", ow - 14, 5.1))
 
         if is_correct:
             pdf.set_fill_color(239, 252, 244)
             pdf.set_text_color(21, 154, 85)
-            try:
-                pdf.rounded_rect(ox, cy, ow, oh, 1.8, style="F")
-            except Exception:
-                pdf.rect(ox, cy, ow, oh, style="F")
             font_style = "B"
         else:
-            pdf.set_fill_color(255, 255, 255)
+            pdf.set_fill_color(248, 249, 251)
             pdf.set_text_color(45, 45, 45)
             font_style = ""
 
+        try:
+            pdf.rounded_rect(ox, cy, ow, oh, 1.8, style="F")
+        except Exception:
+            pdf.rect(ox, cy, ow, oh, style="F")
+
         pdf.set_font("Noto", "B" if is_correct else "", 9.3)
         pdf.set_xy(ox + 2, cy + 0.7)
-        pdf.cell(6, 5.5, f"{letter}.", align="L")
+        pdf.cell(10, 5.5, f"{letter})", align="L")
 
         # Hindi/Devanagari option text.
         pdf.set_font("NotoDeva", font_style, 8.8)
-        pdf.set_xy(ox + 8, cy + 0.7)
-        pdf.multi_cell(ow - 10, 5.1, opt or "")
-        cy += oh
+        pdf.set_xy(ox + 12, cy + 0.7)
+        pdf.multi_cell(ow - 14, 5.1, opt or "")
+        cy += oh + 1.5
 
     # Yellow explanation box.
     if exp:
@@ -534,4 +535,3 @@ def generate_mock_test_pdf(
     os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else ".", exist_ok=True)
     pdf.output(output_path)
     return output_path
-                   
