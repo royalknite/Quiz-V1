@@ -263,7 +263,7 @@ def _q_card_height(pdf: QuizReportPDF, q: Dict, card_w: float) -> float:
     h += max(7.0, _text_height(pdf, q_text, inner_w - 23, 5.4))
     h += 2.5
     for opt in opts:
-        h += max(7.0, _text_height(pdf, opt or "", inner_w - 16, 5.1)) + 1.5
+        h += max(5.5, _text_height(pdf, opt or "", inner_w - 16, 5.1))
     if exp:
         h += 3.0
         h += 7.0 + _text_height(pdf, exp, inner_w - 16, 4.5) + 5.0
@@ -290,7 +290,7 @@ def _render_question_card(pdf: QuizReportPDF,
     # White card + blue left accent.
     pdf.set_fill_color(255, 255, 255)
     try:
-        pdf.rounded_rect(x, y, card_w, card_h, 2.5, style="F")
+        pdf.rounded_rect(x, y, card_w, card_h, 4.0, style="F")
     except Exception:
         pdf.rect(x, y, card_w, card_h, style="F")
 
@@ -305,7 +305,7 @@ def _render_question_card(pdf: QuizReportPDF,
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("Noto", "B", 9)
     try:
-        pdf.rounded_rect(inner_x, y + 4.0, badge_w, badge_h, 1.5, style="F")
+        pdf.rounded_rect(inner_x, y + 4.0, badge_w, badge_h, 2.2, style="F")
     except Exception:
         pdf.rect(inner_x, y + 4.0, badge_w, badge_h, style="F")
     pdf.set_xy(inner_x, y + 4.2)
@@ -326,13 +326,13 @@ def _render_question_card(pdf: QuizReportPDF,
         is_correct = (i == correct_id)
         ox = inner_x + 2
         ow = inner_w - 4
-        oh = max(5.5, _text_height(pdf, opt or "", ow - 14, 5.1))
+        oh = max(5.1, _text_height(pdf, opt or "", ow - 14, 5.1))
 
         if is_correct:
             pdf.set_fill_color(239, 252, 244)
             pdf.set_text_color(21, 154, 85)
             try:
-                pdf.rounded_rect(ox, cy, ow, oh, 1.6, style="F")
+                pdf.rounded_rect(ox, cy, ow, oh, 1.8, style="F")
             except Exception:
                 pdf.rect(ox, cy, ow, oh, style="F")
             font_style = "B"
@@ -368,7 +368,7 @@ def _render_question_card(pdf: QuizReportPDF,
         pdf.set_draw_color(245, 196, 35)
         pdf.set_line_width(0.7)
         try:
-            pdf.rounded_rect(ex, cy, ew, exp_h, 2.0, style="DF")
+            pdf.rounded_rect(ex, cy, ew, exp_h, 2.8, style="DF")
         except Exception:
             pdf.rect(ex, cy, ew, exp_h, style="DF")
         pdf.set_line_width(0.2)
@@ -377,7 +377,7 @@ def _render_question_card(pdf: QuizReportPDF,
         pdf.set_fill_color(245, 196, 35)
         # Keep the yellow accent inside the rounded box so its ends stay softly rounded.
         try:
-            pdf.rounded_rect(ex + 0.4, cy + 1.0, 1.4, max(0.0, exp_h - 2.0), 0.7, style="F")
+            pdf.rounded_rect(ex + 0.55, cy + 1.0, 2.0, max(0.0, exp_h - 2.0), 1.0, style="F")
         except Exception:
             pdf.rect(ex + 0.4, cy + 1.0, 1.4, max(0.0, exp_h - 2.0), style="F")
 
