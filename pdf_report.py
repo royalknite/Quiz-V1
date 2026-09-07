@@ -368,14 +368,18 @@ def _render_question_card(pdf: QuizReportPDF,
         pdf.set_draw_color(245, 196, 35)
         pdf.set_line_width(0.7)
         try:
-            pdf.rounded_rect(ex, cy, ew, exp_h, 1.5, style="DF")
+            pdf.rounded_rect(ex, cy, ew, exp_h, 2.0, style="DF")
         except Exception:
             pdf.rect(ex, cy, ew, exp_h, style="DF")
         pdf.set_line_width(0.2)
 
         # Yellow left-side accent stripe for the explanation box.
         pdf.set_fill_color(245, 196, 35)
-        pdf.rect(ex, cy, 1.2, exp_h, style="F")
+        # Keep the yellow accent inside the rounded box so its ends stay softly rounded.
+        try:
+            pdf.rounded_rect(ex + 0.4, cy + 1.0, 1.4, max(0.0, exp_h - 2.0), 0.7, style="F")
+        except Exception:
+            pdf.rect(ex + 0.4, cy + 1.0, 1.4, max(0.0, exp_h - 2.0), style="F")
 
         # Explanation label + Hindi body, matching the supplied reference.
         pdf.set_xy(text_x, cy + 2.2)
