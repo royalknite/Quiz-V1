@@ -276,7 +276,7 @@ def _render_question_card(pdf: QuizReportPDF,
                          y: float,
                          card_w: float) -> float:
     """Render one full-width question card matching the supplied reference."""
-    x = pdf.l_margin
+    x = M_L
     inner_x = x + 5
     inner_w = card_w - 10
 
@@ -298,7 +298,7 @@ def _render_question_card(pdf: QuizReportPDF,
     pdf.line(x + 1.0, y + 2.0, x + 1.0, y + card_h - 2.0)
     pdf.set_line_width(0.2)
 
-    # Blue Q-number badge.
+    # Blue Q-number badge (rounded rectangle format).
     badge_w, badge_h = 13, 7.5
     pdf.set_fill_color(28, 88, 196)
     pdf.set_text_color(255, 255, 255)
@@ -319,7 +319,7 @@ def _render_question_card(pdf: QuizReportPDF,
     pdf.multi_cell(qw, 5.4, q_text)
     cy = max(pdf.get_y(), y + 12.0) + 2.5
 
-    # Options.
+    # Options (brackets removed, text properly aligned right next to option letters).
     for i, opt in enumerate(opts):
         letter = OPTION_LETTERS[i] if i < len(OPTION_LETTERS) else str(i + 1)
         is_correct = (i == correct_id)
@@ -340,7 +340,6 @@ def _render_question_card(pdf: QuizReportPDF,
             pdf.set_text_color(45, 45, 45)
             font_style = ""
 
-        # Option letter and text directly adjacent without bracket
         pdf.set_font("Noto", "B" if is_correct else "", 9.3)
         pdf.set_xy(ox + 2, cy + 0.7)
         pdf.cell(6, 5.5, f"{letter}.", align="L")
@@ -372,13 +371,12 @@ def _render_question_card(pdf: QuizReportPDF,
 
         # Yellow left-side accent stripe for the explanation box.
         pdf.set_fill_color(245, 196, 35)
-        # Keep the yellow accent inside the rounded box so its ends stay softly rounded.
         try:
             pdf.rounded_rect(ex + 0.55, cy + 1.0, 2.0, max(0.0, exp_h - 2.0), 1.0, style="F")
         except Exception:
             pdf.rect(ex + 0.4, cy + 1.0, 1.4, max(0.0, exp_h - 2.0), style="F")
 
-        # Explanation label + Hindi body, matching the supplied reference.
+        # Explanation label + Hindi body.
         pdf.set_xy(text_x, cy + 2.2)
         pdf.set_font("Noto", "B", 8.8)
         pdf.set_text_color(112, 70, 20)
@@ -431,13 +429,45 @@ def _write_qa_pages(pdf: QuizReportPDF, questions: List[Dict]) -> None:
                 col_y = [top, top]
                 col = 0
 
-        # Render using the correct column X coordinate via set_left_margin
-        orig_margin = pdf.l_margin
-        pdf.l_margin = columns[col]
+        # Render using the column's x position while preserving all existing functions.
+        old_ml = pdf.l_margin
         try:
-            y_end = _render_question_card(pdf, q, idx, col_y[col], COL_W)
-        finally:
-            pdf.l_margin = orig_margin
+            if col == 0:
+                y_end = _render_question_card(pdf, q, idx, col_y[col], COL_W)
+            else:
+                shift = columns[col] - M_L
+                orig_set_xy = pdf.set_xy
+                orig_rect = getattr(pdf, 'rect', None)
+                orig_rounded = getattr(pdf, 'rounded_rect', None)
+                orig_line = pdf.line
+
+                def shifted_set_xy(x, y):
+                    return orig_set_xy(x + shift, y)
+                pdf.set_xy = shifted_set_xy
+
+                if orig_rect:
+                    def shifted_rect(x, y, w, h, *args, **kwargs):
+                        return orig_rect(x + shift, y, w, h, *args, **kwargs)
+                    pdf.rect = shifted_rect
+                if orig_rounded:
+                    def shifted_rounded(x, y, w, h, r, *args, **kwargs):
+                        return orig_rounded(x + shift, y, w, h, r, *args, **kwargs)
+                    pdf.rounded_rect = shifted_rounded
+
+                def shifted_line(x1, y1, x2, y2):
+                    return orig_line(x1 + shift, y1, x2 + shift, y2)
+                pdf.line = shifted_line
+                try:
+                    y_end = _render_question_card(pdf, q, idx, col_y[col], COL_W)
+                finally:
+                    pdf.set_xy = orig_set_xy
+                    if orig_rect:
+                        pdf.rect = orig_rect
+                    if orig_rounded:
+                        pdf.rounded_rect = orig_rounded
+                    pdf.line = orig_line
+        except Exception:
+            y_end = col_y[col] + needed
 
         col_y[col] = y_end + 5.0
 
@@ -504,4 +534,4 @@ def generate_mock_test_pdf(
     os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else ".", exist_ok=True)
     pdf.output(output_path)
     return output_path
-      
+                   
