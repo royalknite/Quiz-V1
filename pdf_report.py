@@ -169,7 +169,6 @@ def _write_page1(pdf: QuizReportPDF,
         return
 
     # Table header
-    col_widths = [12, 70, 18, 14, 18, 26, 22]  # Rank Name Score Wrong Acc% Time (Extra removed)
     headers    = ["Rank", "Participant", "Score", "Wrong", "Acc%", "Time"]
     col_widths = [12, 76, 20, 18, 20, 28]       # adjust to fit 190 mm
 
@@ -178,7 +177,7 @@ def _write_page1(pdf: QuizReportPDF,
     pdf.set_fill_color(230, 237, 255)
     pdf.set_font("Noto", "B", 8)
     x = M_L
-    for i, (hdr, cw) in enumerate(zip(headers, col_widths)):
+    for hdr, cw in zip(headers, col_widths):
         pdf.set_xy(x, y)
         pdf.cell(cw, row_h, hdr, border="B", fill=True, align="C")
         x += cw
@@ -263,7 +262,7 @@ def _q_card_height(pdf: QuizReportPDF, q: Dict, card_w: float) -> float:
     h += max(7.0, _text_height(pdf, q_text, inner_w - 23, 5.4))
     h += 2.5
     for opt in opts:
-        h += max(5.5, _text_height(pdf, opt or "", inner_w - 16, 5.1))
+        h += max(5.5, _text_height(pdf, opt or "", inner_w - 10, 5.1))
     if exp:
         h += 3.0
         h += 7.0 + _text_height(pdf, exp, inner_w - 16, 4.5) + 5.0
@@ -277,7 +276,7 @@ def _render_question_card(pdf: QuizReportPDF,
                          y: float,
                          card_w: float) -> float:
     """Render one full-width question card matching the supplied reference."""
-    x = M_L
+    x = pdf.l_margin
     inner_x = x + 5
     inner_w = card_w - 10
 
@@ -326,7 +325,7 @@ def _render_question_card(pdf: QuizReportPDF,
         is_correct = (i == correct_id)
         ox = inner_x + 2
         ow = inner_w - 4
-        oh = max(5.1, _text_height(pdf, opt or "", ow - 14, 5.1))
+        oh = max(5.1, _text_height(pdf, opt or "", ow - 8, 5.1))
 
         if is_correct:
             pdf.set_fill_color(239, 252, 244)
@@ -341,17 +340,15 @@ def _render_question_card(pdf: QuizReportPDF,
             pdf.set_text_color(45, 45, 45)
             font_style = ""
 
-        # IMPORTANT: NotoSansDevanagari is used for Hindi text, but the
-        # option letters A/B/C/D must use the Latin Noto font.  Otherwise
-        # the letters can disappear on some FPDF/font configurations.
+        # Option letter and text directly adjacent without bracket
         pdf.set_font("Noto", "B" if is_correct else "", 9.3)
         pdf.set_xy(ox + 2, cy + 0.7)
-        pdf.cell(10, 5.5, f"{letter})", align="L")
+        pdf.cell(6, 5.5, f"{letter}.", align="L")
 
         # Hindi/Devanagari option text.
         pdf.set_font("NotoDeva", font_style, 8.8)
-        pdf.set_xy(ox + 12, cy + 0.7)
-        pdf.multi_cell(ow - 14, 5.1, opt or "")
+        pdf.set_xy(ox + 8, cy + 0.7)
+        pdf.multi_cell(ow - 10, 5.1, opt or "")
         cy += oh
 
     # Yellow explanation box.
@@ -434,49 +431,13 @@ def _write_qa_pages(pdf: QuizReportPDF, questions: List[Dict]) -> None:
                 col_y = [top, top]
                 col = 0
 
-        # Render using the column's x position while preserving all existing functions.
-        old_ml = pdf.l_margin
+        # Render using the correct column X coordinate via set_left_margin
+        orig_margin = pdf.l_margin
+        pdf.l_margin = columns[col]
         try:
-            # _render_question_card uses M_L internally, so temporarily translate the page
-            # coordinate system by drawing at the requested column through a local wrapper.
-            # For column 2, use a temporary offset on the PDF canvas.
-            if col == 0:
-                y_end = _render_question_card(pdf, q, idx, col_y[col], COL_W)
-            else:
-                # Same renderer, but shift every x-coordinate by the column offset.
-                shift = columns[col] - M_L
-                orig_set_xy = pdf.set_xy
-                orig_rect = getattr(pdf, 'rect', None)
-                orig_rounded = getattr(pdf, 'rounded_rect', None)
-                orig_line = pdf.line
-
-                def shifted_set_xy(x, y):
-                    return orig_set_xy(x + shift, y)
-                pdf.set_xy = shifted_set_xy
-
-                if orig_rect:
-                    def shifted_rect(x, y, w, h, *args, **kwargs):
-                        return orig_rect(x + shift, y, w, h, *args, **kwargs)
-                    pdf.rect = shifted_rect
-                if orig_rounded:
-                    def shifted_rounded(x, y, w, h, r, *args, **kwargs):
-                        return orig_rounded(x + shift, y, w, h, r, *args, **kwargs)
-                    pdf.rounded_rect = shifted_rounded
-
-                def shifted_line(x1, y1, x2, y2):
-                    return orig_line(x1 + shift, y1, x2 + shift, y2)
-                pdf.line = shifted_line
-                try:
-                    y_end = _render_question_card(pdf, q, idx, col_y[col], COL_W)
-                finally:
-                    pdf.set_xy = orig_set_xy
-                    if orig_rect:
-                        pdf.rect = orig_rect
-                    if orig_rounded:
-                        pdf.rounded_rect = orig_rounded
-                    pdf.line = orig_line
-        except Exception:
-            y_end = col_y[col] + needed
+            y_end = _render_question_card(pdf, q, idx, col_y[col], COL_W)
+        finally:
+            pdf.l_margin = orig_margin
 
         col_y[col] = y_end + 5.0
 
@@ -543,3 +504,4 @@ def generate_mock_test_pdf(
     os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else ".", exist_ok=True)
     pdf.output(output_path)
     return output_path
+      
