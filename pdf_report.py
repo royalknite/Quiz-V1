@@ -315,7 +315,7 @@ def _render_question_card(pdf: QuizReportPDF,
     qx = inner_x + badge_w + 3.5
     qw = inner_w - badge_w - 3.5
     pdf.set_xy(qx, y + 3.5)
-    pdf.set_font("NotoDeva", "B", 10.2)
+    pdf.set_font("NotoDeva", "B", 9.6)
     pdf.set_text_color(20, 20, 20)
     pdf.multi_cell(qw, 5.4, q_text)
     cy = max(pdf.get_y(), y + 12.0) + 2.5
@@ -341,9 +341,15 @@ def _render_question_card(pdf: QuizReportPDF,
             pdf.set_text_color(45, 45, 45)
             font_style = ""
 
-        pdf.set_font("NotoDeva", font_style, 9.3)
+        # IMPORTANT: NotoSansDevanagari is used for Hindi text, but the
+        # option letters A/B/C/D must use the Latin Noto font.  Otherwise
+        # the letters can disappear on some FPDF/font configurations.
+        pdf.set_font("Noto", "B" if is_correct else "", 9.3)
         pdf.set_xy(ox + 2, cy + 0.7)
         pdf.cell(10, 5.5, f"{letter})", align="L")
+
+        # Hindi/Devanagari option text.
+        pdf.set_font("NotoDeva", font_style, 8.8)
         pdf.set_xy(ox + 12, cy + 0.7)
         pdf.multi_cell(ow - 14, 5.1, opt or "")
         cy += oh + 1.0
@@ -367,13 +373,16 @@ def _render_question_card(pdf: QuizReportPDF,
             pdf.rect(ex, cy, ew, exp_h, style="DF")
         pdf.set_line_width(0.2)
 
-        pdf.set_xy(text_x, cy + 2.0)
-        pdf.set_font("NotoDeva", "B", 9.3)
-        pdf.set_text_color(116, 76, 18)
-        pdf.cell(text_w, 5.0, "Explanation:")
-        pdf.set_xy(text_x, pdf.get_y() + 1.0)
-        pdf.set_font("NotoDeva", "", 8.6)
-        pdf.multi_cell(text_w, 4.5, exp)
+        # Explanation label + Hindi body, matching the supplied reference.
+        pdf.set_xy(text_x, cy + 2.2)
+        pdf.set_font("Noto", "B", 8.8)
+        pdf.set_text_color(112, 70, 20)
+        pdf.cell(text_w, 4.5, "Explanation:")
+        label_bottom = pdf.get_y() + 4.5
+        pdf.set_xy(text_x, label_bottom + 0.5)
+        pdf.set_font("NotoDeva", "", 8.1)
+        pdf.set_text_color(100, 72, 35)
+        pdf.multi_cell(text_w, 4.1, exp)
         cy = max(cy + exp_h, pdf.get_y())
 
     pdf.set_text_color(0, 0, 0)
@@ -383,29 +392,85 @@ def _render_question_card(pdf: QuizReportPDF,
 
 
 def _write_qa_pages(pdf: QuizReportPDF, questions: List[Dict]) -> None:
-    """Write questions as full-width cards, one below another."""
+    """Write questions in the compact two-column card layout from the reference."""
     pdf.add_page()
     _draw_qa_page_header(pdf)
 
-    y = 12.0
-    card_w = PRINT_W
-    bottom = PAGE_H - M_BOT - 4
+    top = QA_TOP_Y
+    bottom = QA_BOTTOM_Y
+    columns = [COL_X[0], COL_X[1]]
+    col_y = [top, top]
 
     for idx, q in enumerate(questions, start=1):
         try:
-            needed = _q_card_height(pdf, q, card_w)
+            needed = _q_card_height(pdf, q, COL_W)
         except Exception:
-            needed = 70.0
+            needed = 80.0
 
-        if y > 12.0 and y + needed > bottom:
+        # Fill the shorter column first, like the reference's magazine-style layout.
+        col = 0 if col_y[0] <= col_y[1] else 1
+        if col_y[col] + needed > bottom and col_y[0] + needed > bottom and col_y[1] + needed > bottom:
             pdf.add_page()
             _draw_qa_page_header(pdf)
-            y = 12.0
+            col_y = [top, top]
+            col = 0
 
+        # If the selected column cannot fit, try the other one.
+        if col_y[col] + needed > bottom:
+            other = 1 - col
+            if col_y[other] + needed <= bottom:
+                col = other
+            else:
+                pdf.add_page()
+                _draw_qa_page_header(pdf)
+                col_y = [top, top]
+                col = 0
+
+        # Render using the column's x position while preserving all existing functions.
+        old_ml = pdf.l_margin
         try:
-            y = _render_question_card(pdf, q, idx, y, card_w) + 5.0
+            # _render_question_card uses M_L internally, so temporarily translate the page
+            # coordinate system by drawing at the requested column through a local wrapper.
+            # For column 2, use a temporary offset on the PDF canvas.
+            if col == 0:
+                y_end = _render_question_card(pdf, q, idx, col_y[col], COL_W)
+            else:
+                # Same renderer, but shift every x-coordinate by the column offset.
+                shift = columns[col] - M_L
+                orig_set_xy = pdf.set_xy
+                orig_rect = getattr(pdf, 'rect', None)
+                orig_rounded = getattr(pdf, 'rounded_rect', None)
+                orig_line = pdf.line
+
+                def shifted_set_xy(x, y):
+                    return orig_set_xy(x + shift, y)
+                pdf.set_xy = shifted_set_xy
+
+                if orig_rect:
+                    def shifted_rect(x, y, w, h, *args, **kwargs):
+                        return orig_rect(x + shift, y, w, h, *args, **kwargs)
+                    pdf.rect = shifted_rect
+                if orig_rounded:
+                    def shifted_rounded(x, y, w, h, r, *args, **kwargs):
+                        return orig_rounded(x + shift, y, w, h, r, *args, **kwargs)
+                    pdf.rounded_rect = shifted_rounded
+
+                def shifted_line(x1, y1, x2, y2):
+                    return orig_line(x1 + shift, y1, x2 + shift, y2)
+                pdf.line = shifted_line
+                try:
+                    y_end = _render_question_card(pdf, q, idx, col_y[col], COL_W)
+                finally:
+                    pdf.set_xy = orig_set_xy
+                    if orig_rect:
+                        pdf.rect = orig_rect
+                    if orig_rounded:
+                        pdf.rounded_rect = orig_rounded
+                    pdf.line = orig_line
         except Exception:
-            y += 10.0
+            y_end = col_y[col] + needed
+
+        col_y[col] = y_end + 5.0
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
