@@ -287,15 +287,12 @@ def _render_question_card(pdf: QuizReportPDF,
     correct_id = q.get("correct_option_id")
     card_h = _q_card_height(pdf, q, card_w)
 
-    # White question card with a subtle rounded light-gray border.
-    # Keep the blue vertical accent from the existing design.
+    # White card + blue left accent.
     pdf.set_fill_color(255, 255, 255)
-    pdf.set_draw_color(215, 219, 226)
-    pdf.set_line_width(0.55)
     try:
-        pdf.rounded_rect(x, y, card_w, card_h, 3.0, style="DF")
+        pdf.rounded_rect(x, y, card_w, card_h, 2.5, style="F")
     except Exception:
-        pdf.rect(x, y, card_w, card_h, style="DF")
+        pdf.rect(x, y, card_w, card_h, style="F")
 
     pdf.set_draw_color(30, 86, 190)
     pdf.set_line_width(1.25)
@@ -308,7 +305,7 @@ def _render_question_card(pdf: QuizReportPDF,
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("Noto", "B", 9)
     try:
-        pdf.rounded_rect(inner_x, y + 4.0, badge_w, badge_h, 2.0, style="F")
+        pdf.rounded_rect(inner_x, y + 4.0, badge_w, badge_h, 2.5, style="F")
     except Exception:
         pdf.rect(inner_x, y + 4.0, badge_w, badge_h, style="F")
     pdf.set_xy(inner_x, y + 4.2)
@@ -355,7 +352,7 @@ def _render_question_card(pdf: QuizReportPDF,
         pdf.set_font("NotoDeva", font_style, 8.8)
         pdf.set_xy(ox + 12, cy + 0.7)
         pdf.multi_cell(ow - 14, 5.1, opt or "")
-        cy += oh + 1.0
+        cy += oh
 
     # Yellow explanation box.
     if exp:
@@ -367,10 +364,9 @@ def _render_question_card(pdf: QuizReportPDF,
         exp_body_h = _text_height(pdf, exp, text_w, 4.5)
         exp_h = 8.0 + exp_body_h + 5.0
 
-        # Rounded pale-yellow explanation strip, matching the reference.
         pdf.set_fill_color(255, 249, 204)
         pdf.set_draw_color(245, 196, 35)
-        pdf.set_line_width(0.65)
+        pdf.set_line_width(0.7)
         try:
             pdf.rounded_rect(ex, cy, ew, exp_h, 2.5, style="DF")
         except Exception:
