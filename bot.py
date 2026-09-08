@@ -142,6 +142,37 @@ POLL_OPTION_MAX_LENGTH = 95
 POLL_EXPLANATION_MAX_LENGTH = 200
 TRIM_LENGTH = 80
 
+# Report toggles (owner controlled)
+PDF_REPORTS_ENABLED = True
+HTML_REPORTS_ENABLED = True
+OWNER_IDS = {int(x) for x in os.getenv("OWNER_ID", "0").split() if x.strip().lstrip("-").isdigit()}
+
+
+def _is_owner(user_id: int) -> bool:
+    return user_id in OWNER_IDS
+
+
+async def toggle_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global PDF_REPORTS_ENABLED
+    if not _is_owner(update.effective_user.id):
+        return
+    PDF_REPORTS_ENABLED = not PDF_REPORTS_ENABLED
+    if PDF_REPORTS_ENABLED:
+        await update.effective_message.reply_text("✅ PDF Reports ENABLED.\nUse /pdf again to disable.")
+    else:
+        await update.effective_message.reply_text("❌ PDF Reports DISABLED.\nUse /pdf again to enable.")
+
+
+async def toggle_html(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global HTML_REPORTS_ENABLED
+    if not _is_owner(update.effective_user.id):
+        return
+    HTML_REPORTS_ENABLED = not HTML_REPORTS_ENABLED
+    if HTML_REPORTS_ENABLED:
+        await update.effective_message.reply_text("✅ HTML Reports ENABLED.\nUse /html again to disable.")
+    else:
+        await update.effective_message.reply_text("❌ HTML Reports DISABLED.\nUse /html again to enable.")
+
 # ═══════════════════════════════════════════════════════════════════════════
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1641,15 +1672,16 @@ async def end_private_quiz(chat_id: int, context: ContextTypes.DEFAULT_TYPE):
         )
         
 
-        try:
-            await send_quiz_result_pdf(
-                quiz_data, chat_id, context,
-                protect_content=False,
-                leaderboard=leaderboard,
-                shuffle=False,
-            )
-        except Exception as e:
-            logger.error(f"Error generating quiz PDF: {e}")
+        if PDF_REPORTS_ENABLED:
+            try:
+                await send_quiz_result_pdf(
+                    quiz_data, chat_id, context,
+                    protect_content=False,
+                    leaderboard=leaderboard,
+                    shuffle=False,
+                )
+            except Exception as e:
+                logger.error(f"Error generating quiz PDF: {e}")
     
     except Exception as e:
         logger.error(f"Error ending private quiz: {e}", exc_info=True)
@@ -2223,15 +2255,16 @@ async def end_group_quiz(chat_id: int):
                 "ℹ️ Kisi ne bhi answer nahi diya — yahaan question paper PDF bhej raha hoon:",
                 parse_mode=ParseMode.MARKDOWN
             )
-            try:
-                await send_quiz_result_pdf(
-                    quiz_data, chat_id, context,
-                    protect_content=False,
-                    leaderboard=[],
-                    shuffle=False,
-                )
-            except Exception as e:
-                logger.error(f"Error generating quiz PDF (no-answers branch): {e}")
+            if PDF_REPORTS_ENABLED:
+                try:
+                    await send_quiz_result_pdf(
+                        quiz_data, chat_id, context,
+                        protect_content=False,
+                        leaderboard=[],
+                        shuffle=False,
+                    )
+                except Exception as e:
+                    logger.error(f"Error generating quiz PDF (no-answers branch): {e}")
             await session_manager.delete_session(chat_id)
             return
         
@@ -2284,24 +2317,25 @@ async def end_group_quiz(chat_id: int):
                 )
         
 
-        try:
-            ok = await send_quiz_result_pdf(
-                quiz_data, chat_id, context,
-                protect_content=protect_type,
-                leaderboard=leaderboard,
-                shuffle=False,
-            )
-            if not ok:
+        if PDF_REPORTS_ENABLED:
+            try:
+                ok = await send_quiz_result_pdf(
+                    quiz_data, chat_id, context,
+                    protect_content=protect_type,
+                    leaderboard=leaderboard,
+                    shuffle=False,
+                )
+                if not ok:
+                    await safe_send_message(
+                        context, chat_id,
+                        "⚠️ Could not generate quiz PDF due to an error."
+                    )
+            except Exception as e:
+                logger.error(f"Error generating quiz PDF: {e}")
                 await safe_send_message(
                     context, chat_id,
                     "⚠️ Could not generate quiz PDF due to an error."
                 )
-        except Exception as e:
-            logger.error(f"Error generating quiz PDF: {e}")
-            await safe_send_message(
-                context, chat_id,
-                "⚠️ Could not generate quiz PDF due to an error."
-            )
         
 
         await session_manager.delete_session(chat_id)
@@ -3111,6 +3145,10 @@ async def compare_results(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
 
+        if not HTML_REPORTS_ENABLED:
+            await query.answer(text="❌ HTML Reports are disabled.", show_alert=True)
+            return
+
         if generate_analysis_html:
             html_content = await generate_analysis_html(quiz_results, quiz_data)
             
@@ -3291,6 +3329,8 @@ def main():
     application.add_handler(CommandHandler("normal", normal_quiz))
     application.add_handler(CommandHandler("check", system_stats))
     application.add_handler(CommandHandler("cleanup", emergency_cleanup))
+    application.add_handler(CommandHandler("pdf", toggle_pdf))
+    application.add_handler(CommandHandler("html", toggle_html))
     application.add_handler(PollAnswerHandler(handle_poll_answer))
     application.add_handler(CallbackQueryHandler(compare_results, pattern="^compare_"))
     
