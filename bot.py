@@ -638,6 +638,10 @@ class SessionManager:
 
 session_manager = SessionManager()
 
+# In-memory wake-up events for active group quiz questions.  This is kept
+# outside the session data so it is never written to the database.
+group_quiz_answer_events: Dict[int, asyncio.Event] = {}
+
 # ═══════════════════════════════════════════════════════════════════════════
 # SCHEDULED QUIZ MANAGER
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1883,9 +1887,14 @@ async def run_group_quiz_no_sections(chat_id: int, start_index: int):
             return
         
 
+        # Create the wake-up event before sending the poll.  A poll answer
+        # will set this event so the next question can start immediately.
+        answer_event = asyncio.Event()
+        group_quiz_answer_events[chat_id] = answer_event
         success = await send_group_question(chat_id, question_idx)
         
         if not success:
+            group_quiz_answer_events.pop(chat_id, None)
 
             logger.warning(f"Failed to send question {question_idx} for chat {chat_id}")
             await asyncio.sleep(3)
@@ -1896,16 +1905,16 @@ async def run_group_quiz_no_sections(chat_id: int, start_index: int):
         if timer < 10:
             timer = 10
         
-        # Keep the existing timer as the fallback, but advance immediately
-        # when a participant submits an answer instead of waiting for timeout.
-        deadline = time.time() + timer + 3
-        while time.time() < deadline:
-            session = await session_manager.get_session(chat_id)
-            if not session:
-                return
-            if session.get("answered_poll_id") == session.get("current_poll_id"):
-                break
-            await asyncio.sleep(0.25)
+        # Wait for an answer, but keep the existing timer as the fallback.
+        # The event is set directly by handle_poll_answer, so there is no
+        # polling delay between the user's click and the next question.
+        try:
+            await asyncio.wait_for(answer_event.wait(), timeout=timer + 3)
+        except asyncio.TimeoutError:
+            pass
+        finally:
+            if group_quiz_answer_events.get(chat_id) is answer_event:
+                group_quiz_answer_events.pop(chat_id, None)
     
     logger.info(f"Quiz completed all questions for chat {chat_id}")
 
@@ -1947,9 +1956,13 @@ async def run_group_quiz_with_sections(chat_id: int, start_index: int):
                 return
             
 
+            # Create the wake-up event before sending the poll.
+            answer_event = asyncio.Event()
+            group_quiz_answer_events[chat_id] = answer_event
             success = await send_group_question(chat_id, question_idx, section_timer)
             
             if not success:
+                group_quiz_answer_events.pop(chat_id, None)
                 logger.warning(f"Failed to send question {question_idx} for chat {chat_id}")
                 await asyncio.sleep(3)
                 continue
@@ -1959,16 +1972,14 @@ async def run_group_quiz_with_sections(chat_id: int, start_index: int):
             if timer < 10:
                 timer = 10
             
-            # Keep the existing timer as the fallback, but advance immediately
-            # when a participant submits an answer instead of waiting for timeout.
-            deadline = time.time() + timer + 3
-            while time.time() < deadline:
-                session = await session_manager.get_session(chat_id)
-                if not session:
-                    return
-                if session.get("answered_poll_id") == session.get("current_poll_id"):
-                    break
-                await asyncio.sleep(0.25)
+            # Wait for an answer, but keep the existing timer as the fallback.
+            try:
+                await asyncio.wait_for(answer_event.wait(), timeout=timer + 3)
+            except asyncio.TimeoutError:
+                pass
+            finally:
+                if group_quiz_answer_events.get(chat_id) is answer_event:
+                    group_quiz_answer_events.pop(chat_id, None)
         
 
         await end_group_section(chat_id, section)
@@ -3256,6 +3267,9 @@ async def handle_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 session["answered_poll_id"] = poll_id
                 
                 await session_manager.update_session(chat_id, session)
+                answer_event = group_quiz_answer_events.get(chat_id)
+                if answer_event is not None and poll_id == session.get("current_poll_id"):
+                    answer_event.set()
                 break
     
     except Exception as e:
