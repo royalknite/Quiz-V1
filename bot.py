@@ -566,6 +566,7 @@ class SessionManager:
         async with self._lock:
             session = self.sessions.pop(chat_id, None)
             self.last_activity.pop(chat_id, None)
+            group_answer_events.pop(chat_id, None)
             
 
             if chat_id in self.active_quiz_tasks:
@@ -638,9 +639,8 @@ class SessionManager:
 
 session_manager = SessionManager()
 
-# In-memory wake-up events for active group quiz questions.  This is kept
-# outside the session data so it is never written to the database.
-group_quiz_answer_events: Dict[int, asyncio.Event] = {}
+# Per-chat in-memory wake events for group quiz question advancement.
+group_answer_events: Dict[int, asyncio.Event] = {}
 
 # ═══════════════════════════════════════════════════════════════════════════
 # SCHEDULED QUIZ MANAGER
@@ -1237,6 +1237,7 @@ async def start_private_quiz(chat_id: int, context: ContextTypes.DEFAULT_TYPE,
             "modified_timer_offset": 0
         }
         
+        group_answer_events[chat_id] = asyncio.Event()
         await session_manager.create_session(chat_id, session_data)
         
 
@@ -1793,7 +1794,9 @@ async def start_group_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE,
             "context": context,
             "shuffle_options": quiz.get("shuffle_options", False),
             "sections": sections,
-            "sections_sorted": sorted(sections, key=lambda s: s["question_range"][0]) if sections else []
+            "sections_sorted": sorted(sections, key=lambda s: s["question_range"][0]) if sections else [],
+            # In-memory signal: a submitted poll answer should wake the group runner immediately.
+            "current_poll_id": None
         }
         
         await session_manager.create_session(chat_id, session_data)
@@ -1887,14 +1890,17 @@ async def run_group_quiz_no_sections(chat_id: int, start_index: int):
             return
         
 
-        # Create the wake-up event before sending the poll.  A poll answer
-        # will set this event so the next question can start immediately.
-        answer_event = asyncio.Event()
-        group_quiz_answer_events[chat_id] = answer_event
+        # Reset the per-question signal before sending the poll.
+        session = await session_manager.get_session(chat_id)
+        if not session:
+            return
+        answer_event = group_answer_events.get(chat_id)
+        if answer_event:
+            answer_event.clear()
+
         success = await send_group_question(chat_id, question_idx)
         
         if not success:
-            group_quiz_answer_events.pop(chat_id, None)
 
             logger.warning(f"Failed to send question {question_idx} for chat {chat_id}")
             await asyncio.sleep(3)
@@ -1905,16 +1911,20 @@ async def run_group_quiz_no_sections(chat_id: int, start_index: int):
         if timer < 10:
             timer = 10
         
-        # Wait for an answer, but keep the existing timer as the fallback.
-        # The event is set directly by handle_poll_answer, so there is no
-        # polling delay between the user's click and the next question.
-        try:
-            await asyncio.wait_for(answer_event.wait(), timeout=timer + 3)
-        except asyncio.TimeoutError:
-            pass
-        finally:
-            if group_quiz_answer_events.get(chat_id) is answer_event:
-                group_quiz_answer_events.pop(chat_id, None)
+        # Wait for an actual participant answer; if nobody answers, keep the
+        # original timer behaviour as the fallback.
+        if answer_event:
+            try:
+                await asyncio.wait_for(answer_event.wait(), timeout=timer + 3)
+            except asyncio.TimeoutError:
+                pass
+        else:
+            try:
+                await asyncio.sleep(timer + 3)
+            except asyncio.CancelledError:
+                raise
+        
+        await asyncio.sleep(0.2)
     
     logger.info(f"Quiz completed all questions for chat {chat_id}")
 
@@ -1956,13 +1966,17 @@ async def run_group_quiz_with_sections(chat_id: int, start_index: int):
                 return
             
 
-            # Create the wake-up event before sending the poll.
-            answer_event = asyncio.Event()
-            group_quiz_answer_events[chat_id] = answer_event
+            # Reset the per-question signal before sending the poll.
+            session = await session_manager.get_session(chat_id)
+            if not session:
+                return
+            answer_event = group_answer_events.get(chat_id)
+            if answer_event:
+                answer_event.clear()
+
             success = await send_group_question(chat_id, question_idx, section_timer)
             
             if not success:
-                group_quiz_answer_events.pop(chat_id, None)
                 logger.warning(f"Failed to send question {question_idx} for chat {chat_id}")
                 await asyncio.sleep(3)
                 continue
@@ -1972,14 +1986,19 @@ async def run_group_quiz_with_sections(chat_id: int, start_index: int):
             if timer < 10:
                 timer = 10
             
-            # Wait for an answer, but keep the existing timer as the fallback.
-            try:
-                await asyncio.wait_for(answer_event.wait(), timeout=timer + 3)
-            except asyncio.TimeoutError:
-                pass
-            finally:
-                if group_quiz_answer_events.get(chat_id) is answer_event:
-                    group_quiz_answer_events.pop(chat_id, None)
+            # Advance immediately after an answer; otherwise retain the timer.
+            if answer_event:
+                try:
+                    await asyncio.wait_for(answer_event.wait(), timeout=timer + 3)
+                except asyncio.TimeoutError:
+                    pass
+            else:
+                try:
+                    await asyncio.sleep(timer + 3)
+                except asyncio.CancelledError:
+                    raise
+            
+            await asyncio.sleep(0.2)
         
 
         await end_group_section(chat_id, section)
@@ -2190,9 +2209,6 @@ async def send_group_question(chat_id: int, question_idx: int, custom_timer: int
                 "correct_option": correct_option_id,
                 "sent_time": current_time
             }
-            # Signal used only by the group quiz runner: once any participant
-            # answers, the runner can immediately move to the next question.
-            session["answered_poll_id"] = None
             session["current_poll_id"] = poll_msg.poll.id
             session["current_index"] = question_idx + 1
             await session_manager.update_session(chat_id, session)
@@ -3262,14 +3278,16 @@ async def handle_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE)
                     "option": option_id,
                     "time": current_time
                 }
-                # Signal the group runner so it can show the next question
-                # immediately after an answer. Timer remains the fallback.
-                session["answered_poll_id"] = poll_id
+                
+                # Only the currently displayed poll can advance the quiz.
+                # This wakes the runner immediately instead of waiting for the timer.
+                if poll_id == session.get("current_poll_id"):
+                    answer_event = group_answer_events.get(chat_id)
+                    if answer_event:
+                        logger.info(f"GROUP POLL ANSWER RECEIVED: chat={chat_id}, poll={poll_id}, user={user_id} -> advancing immediately")
+                        answer_event.set()
                 
                 await session_manager.update_session(chat_id, session)
-                answer_event = group_quiz_answer_events.get(chat_id)
-                if answer_event is not None and poll_id == session.get("current_poll_id"):
-                    answer_event.set()
                 break
     
     except Exception as e:
