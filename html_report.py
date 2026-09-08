@@ -386,31 +386,71 @@ body{{font-family:'Poppins',-apple-system,BlinkMacSystemFont,sans-serif;backgrou
 .nav-btn.secondary{{background:var(--bg-light);color:var(--text-dark);border:2px solid var(--border)}}
 .nav-btn:active{{transform:scale(.96)}}
 .nav-btn:disabled{{opacity:.5;cursor:not-allowed;transform:none}}
-.question-nav-toggle{{position:fixed;bottom:104px;right:20px;width:56px;height:56px;background:linear-gradient(135deg,var(--primary) 0%,var(--secondary) 100%);color:#fff;border:none;border-radius:50%;font-size:22px;cursor:pointer;box-shadow:0 8px 20px rgba(102,126,234,.4);z-index:85;transition:all .3s}}
+.question-nav-toggle{{position:fixed;bottom:104px;right:18px;width:56px;height:56px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;border:none;border-radius:50%;font-size:22px;cursor:pointer;box-shadow:0 8px 20px rgba(102,126,234,.4);z-index:85;transition:all .2s}}
 .question-nav-toggle:active{{transform:scale(.95)}}
-.question-nav-panel{{position:fixed;bottom:0;left:0;right:0;background:var(--bg-white);border-radius:18px 18px 0 0;box-shadow:0 -4px 24px rgba(0,0,0,.15);z-index:95;max-height:72vh;overflow-y:auto;transform:translateY(100%);transition:transform .25s;padding:12px}}
-.question-nav-panel.open{{transform:translateY(0)}}
-.nav-panel-header{{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid var(--border)}}
-.nav-panel-title{{font-size:18px;font-weight:700;color:var(--text-dark)}}
-.nav-close-btn{{width:32px;height:32px;background:var(--bg-light);border:none;border-radius:50%;font-size:16px;cursor:pointer;color:var(--text-light)}}
-.nav-legend{{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:20px;font-size:12px;color:var(--text-dark)}}
-.legend-item{{display:flex;align-items:center;gap:6px;color:var(--text-dark)}}
-.legend-box{{width:20px;height:20px;border-radius:6px}}
-.legend-box.answered{{background:linear-gradient(135deg,var(--primary) 0%,var(--secondary) 100%)}}
-.legend-box.marked{{background:linear-gradient(135deg,var(--warning) 0%,#f59e0b 100%)}}
-.legend-box.unanswered{{background:var(--border)}}
-.question-grid{{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}}
-.question-nav-item{{aspect-ratio:1;border:2px solid var(--border);border-radius:10px;background:var(--bg-white);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;cursor:pointer;transition:all .3s;color:var(--text-light)}}
-.question-nav-item:active{{transform:scale(.95)}}
-.question-nav-item.current{{border-color:var(--primary);background:linear-gradient(135deg,rgba(102,126,234,.15) 0%,rgba(118,75,162,.15) 100%);color:var(--primary)}}
-.question-nav-item.answered{{background:linear-gradient(135deg,var(--primary) 0%,var(--secondary) 100%);color:#fff;border-color:transparent}}
-.question-nav-item.marked{{background:linear-gradient(135deg,var(--warning) 0%,#f59e0b 100%);color:#fff;border-color:transparent}}
-.question-nav-item.correct{{background:linear-gradient(135deg,var(--success) 0%,#38a169 100%);color:#fff;border-color:transparent}}
-.question-nav-item.incorrect{{background:linear-gradient(135deg,var(--danger) 0%,#e53e3e 100%);color:#fff;border-color:transparent}}
-.nav-section-label{{grid-column:1/-1;font-size:11px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.5px;padding:6px 0 2px;border-top:1px solid var(--border);margin-top:4px}}
+
+/* Mobile Question Navigator - right side drawer */
+.question-nav-panel{{position:fixed;top:0;right:0;bottom:0;left:auto;width:min(84vw,570px);max-width:570px;background:#182b40;color:#fff;border-radius:0;box-shadow:-12px 0 35px rgba(0,0,0,.35);z-index:1001;display:flex;flex-direction:column;overflow:hidden;transform:translateX(105%);transition:transform .25s ease;padding:18px 14px 14px}}
+.question-nav-panel.open{{transform:translateX(0)}}
+.nav-panel-header{{display:flex;justify-content:space-between;align-items:center;flex:0 0 auto;margin-bottom:14px;padding:4px 2px 14px;border-bottom:1px solid rgba(255,255,255,.12)}}
+.nav-panel-title{{font-size:19px;font-weight:700;color:#fff;display:flex;align-items:center;gap:8px;margin:0}}
+.nav-panel-title i{{color:#8bd1ff}}
+.nav-close-btn{{width:40px;height:40px;background:transparent;border:none;border-radius:10px;font-size:26px;cursor:pointer;color:#fff;display:flex;align-items:center;justify-content:center}}
+.nav-close-btn:active{{background:rgba(255,255,255,.1)}}
+.nav-legend{{display:grid;grid-template-columns:1fr;gap:8px;margin:0 0 14px;padding:0;flex:0 0 auto;font-size:14px;color:#fff}}
+.legend-item{{display:flex;align-items:center;gap:10px;color:#f3f6fa;background:#20364d;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:9px 12px;min-height:40px}}
+.legend-box{{width:22px;height:22px;min-width:22px;border-radius:50%}}
+.legend-box.answered{{background:#16c47a}}
+.legend-box.marked{{background:#ffbd17}}
+.legend-box.unanswered{{background:#438fe8}}
+.question-grid{{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px;overflow-y:auto;overflow-x:hidden;align-content:start;padding:2px 0 12px;flex:1 1 auto;scrollbar-width:thin}}
+.question-nav-item{{aspect-ratio:1;min-width:0;border:1px solid rgba(255,255,255,.05);border-radius:9px;background:#3a4658;color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;cursor:pointer;transition:all .15s;box-sizing:border-box}}
+.question-nav-item:active{{transform:scale(.94)}}
+.question-nav-item.current{{border:3px solid #fff;background:#3a4658;color:#fff;box-shadow:0 0 0 2px #ffbd17 inset}}
+.question-nav-item.answered{{background:#16c47a;color:#fff;border-color:#16c47a}}
+.question-nav-item.marked{{background:#ffbd17;color:#162235;border-color:#ffbd17}}
+.question-nav-item.correct{{background:#16c47a;color:#fff;border-color:#16c47a}}
+.question-nav-item.incorrect{{background:#e74c5b;color:#fff;border-color:#e74c5b}}
+.nav-section-label{{grid-column:1/-1;font-size:10px;font-weight:700;color:#9eafc3;text-transform:uppercase;letter-spacing:.5px;padding:7px 2px 3px;border-top:1px solid rgba(255,255,255,.12);margin-top:2px}}
+.nav-submit-btn{{flex:0 0 auto;width:100%;margin-top:8px;padding:14px 16px;border:none;border-radius:13px;background:#b7c5dc;color:#17283b;font-size:16px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;min-height:54px}}
+.nav-submit-btn:active{{transform:scale(.985)}}
 #resultsContainer{{display:none;position:fixed;top:0;left:0;width:100%;height:100vh;background:var(--bg-light);overflow-y:auto;overflow-x:hidden;padding:20px;z-index:1000}}
 #resultsContainer.scrollable{{scrollbar-width:thin;scrollbar-color:var(--primary) transparent}}
-.results-header{{text-align:center;padding:40px 20px;background:var(--bg-white);border-radius:20px;margin-bottom:20px;box-shadow:0 4px 20px rgba(0,0,0,.06)}}
+.results-header{{text-align:center;padding:32px 20px 28px;background:transparent;border-radius:0;margin-bottom:18px;box-shadow:none}}
+.results-main-title{{font-size:34px;font-weight:700;color:#2b4f87;line-height:1.2;margin:0 0 14px}}
+.results-subtitle{{font-size:17px;color:#718096;line-height:1.45;margin:0 auto 24px;max-width:700px}}
+.results-score{{display:flex;align-items:center;justify-content:center;min-height:150px;padding:24px 20px;border-radius:28px;background:#dff2ff;color:#2182b4;font-size:52px;font-weight:800;line-height:1.15;margin:0 auto 24px;max-width:1000px}}
+.results-score-label{{display:block}}
+.results-score-value{{display:block}}
+.results-percentage{{display:none}}
+.results-icon{{display:none}}
+.stats-grid{{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:0 auto 24px;max-width:1000px}}
+.stat-card{{background:#fff;padding:28px 20px;border-radius:22px;box-shadow:0 3px 18px rgba(0,0,0,.035);text-align:center}}
+.stat-card.total{{background:#f4f7fb}}
+.stat-card.correct-card{{background:#e5f8ef}}
+.stat-card.incorrect-card{{background:#fff0f1}}
+.stat-card.unanswered-card{{background:#fff8dd}}
+.stat-icon{{display:none}}
+.stat-value{{font-size:42px;font-weight:700;color:var(--text-dark);margin-bottom:4px}}
+.stat-label{{font-size:18px;color:var(--text-light);font-weight:500}}
+.stat-card.correct-card .stat-value,.stat-card.correct-card .stat-label{{color:#2b9562}}
+.stat-card.incorrect-card .stat-value,.stat-card.incorrect-card .stat-label{{color:#c64f5d}}
+.stat-card.unanswered-card .stat-value,.stat-card.unanswered-card .stat-label{{color:#a98508}}
+.results-filters{{display:flex;flex-wrap:wrap;gap:14px;margin:0 auto 28px;max-width:1000px}}
+.result-filter{{border:1px solid #d9e0e9;background:#fff;color:#1a202c;border-radius:28px;padding:14px 24px;font-size:17px;font-weight:600;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.02)}}
+.result-filter.active{{background:#182536;color:#fff;border-color:#182536}}
+.result-filter:active{{transform:scale(.98)}}
+.review-list{{max-width:1000px;margin:0 auto;padding-bottom:30px}}
+.review-card{{background:#fff;border:1px solid #dce2ea;border-radius:24px;padding:28px 32px;margin-bottom:22px;box-shadow:0 2px 10px rgba(0,0,0,.025)}}
+.review-question-number{{font-size:28px;font-weight:600;color:#2b4f87;margin-bottom:30px}}
+.review-question-text{{font-size:20px;font-weight:600;color:#18212f;line-height:1.55;white-space:pre-wrap;word-break:break-word;margin-bottom:22px}}
+.review-answer-box{{border-radius:18px;padding:16px 20px;margin:12px 0;font-size:18px;line-height:1.5;white-space:pre-wrap;word-break:break-word}}
+.review-your-answer{{background:#eef2f7;color:#657386}}
+.review-your-answer.wrong{{background:#fff0f1;color:#b94452}}
+.review-correct-answer{{background:#e7f8ef;color:#247d57}}
+.review-explanation{{background:#fff8dd;border-left:6px solid #f2c315;color:#6d5b20;border-radius:16px;padding:18px 20px;margin-top:14px;font-size:18px;line-height:1.6;white-space:pre-wrap;word-break:break-word}}
+.review-hidden{{display:none!important}}
+.action-buttons{{display:none}}
 .results-icon{{font-size:80px;margin-bottom:20px}}
 .results-title{{font-size:28px;font-weight:700;color:var(--text-dark);margin-bottom:10px}}
 .results-score{{font-size:52px;font-weight:800;background:linear-gradient(135deg,var(--primary) 0%,var(--secondary) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:10px}}
@@ -506,21 +546,30 @@ body{{font-family:'Poppins',-apple-system,BlinkMacSystemFont,sans-serif;backgrou
 <div class="legend-item"><div class="legend-box unanswered"></div><span>Not Answered</span></div>
 </div>
 <div class="question-grid" id="qg"></div>
+<button class="nav-submit-btn" id="nsm"><i class="fas fa-bullseye"></i> SUBMIT TEST</button>
 </div>
 </div>
 <div id="resultsContainer">
 <div class="results-header">
 <div class="results-icon" id="ri"></div>
-<h2 class="results-title" id="rt"></h2>
-<div class="results-score" id="rs"></div>
+<h2 class="results-main-title">🎯 Exam Result Summary</h2>
+<div class="results-subtitle">Exam completed · Negative Marking: {nm:g} per wrong answer</div>
+<div class="results-score"><span class="results-score-label">Final Score: <span id="rs">0 / {mm}</span></span></div>
 <div class="results-percentage" id="rp"></div>
 </div>
 <div class="stats-grid">
-<div class="stat-card"><div class="stat-icon correct"><i class="fas fa-check"></i></div><div class="stat-value" id="cc">0</div><div class="stat-label">Correct</div></div>
-<div class="stat-card"><div class="stat-icon incorrect"><i class="fas fa-times"></i></div><div class="stat-value" id="ic">0</div><div class="stat-label">Incorrect</div></div>
-<div class="stat-card"><div class="stat-icon unattempted"><i class="fas fa-minus"></i></div><div class="stat-value" id="uc">0</div><div class="stat-label">Unattempted</div></div>
-<div class="stat-card"><div class="stat-icon negative"><i class="fas fa-exclamation-triangle"></i></div><div class="stat-value" id="nm">0</div><div class="stat-label">Negative Marks</div></div>
+<div class="stat-card total"><div class="stat-value">{mm}</div><div class="stat-label">Total</div></div>
+<div class="stat-card correct-card"><div class="stat-value" id="cc">0</div><div class="stat-label">Correct</div></div>
+<div class="stat-card incorrect-card"><div class="stat-value" id="ic">0</div><div class="stat-label">Incorrect</div></div>
+<div class="stat-card unanswered-card"><div class="stat-value" id="uc">0</div><div class="stat-label">Not Answered</div></div>
 </div>
+<div class="results-filters" id="resultFilters">
+<button class="result-filter active" data-filter="all">📋 All Questions</button>
+<button class="result-filter" data-filter="correct">✅ Correct</button>
+<button class="result-filter" data-filter="incorrect">❌ Incorrect</button>
+<button class="result-filter" data-filter="unanswered">⚪ Not Answered</button>
+</div>
+<div class="review-list" id="reviewList"></div>
 <div class="action-buttons">
 <button class="action-btn primary" id="rb"><i class="fas fa-search"></i>Review Answers</button>
 <button class="action-btn secondary" id="rsb"><i class="fas fa-redo"></i>Restart Quiz</button>
@@ -655,7 +704,7 @@ function so(oi){{
   if(st.a[st.cq]===oi){{st.a[st.cq]=null}}else{{st.a[st.cq]=oi}}
   rq(st.cq);
 }}
-function sn(){{document.getElementById('cr').addEventListener('click',clr);document.getElementById('pv').addEventListener('click',np);document.getElementById('nx').addEventListener('click',nn);document.getElementById('mk').addEventListener('click',tm);document.getElementById('sm').addEventListener('click',cs);document.getElementById('nt').addEventListener('click',tnp);document.getElementById('nc').addEventListener('click',tnp);document.getElementById('rb').addEventListener('click',ra);document.getElementById('rsb').addEventListener('click',rs);document.getElementById('tt').addEventListener('click',tgt);document.addEventListener('keydown',e=>{{if(st.sb)return;if(e.key==='ArrowLeft')np();if(e.key==='ArrowRight')nn()}})}}
+function sn(){{document.getElementById('cr').addEventListener('click',clr);document.getElementById('pv').addEventListener('click',np);document.getElementById('nx').addEventListener('click',nn);document.getElementById('mk').addEventListener('click',tm);document.getElementById('sm').addEventListener('click',cs);document.getElementById('nt').addEventListener('click',tnp);document.getElementById('nc').addEventListener('click',tnp);document.getElementById('nsm').addEventListener('click',()=>{{tnp();cs()}});document.getElementById('rb').addEventListener('click',ra);document.getElementById('rsb').addEventListener('click',rs);document.getElementById('tt').addEventListener('click',tgt);document.addEventListener('keydown',e=>{{if(st.sb)return;if(e.key==='ArrowLeft')np();if(e.key==='ArrowRight')nn()}})}}
 function np(){{if(st.cq>0)rq(st.cq-1)}}
 function nn(){{if(st.cq<qd.q.length-1)rq(st.cq+1)}}
 function clr(){{if(st.sb)return;st.a[st.cq]=null;rq(st.cq);uqg();}}
@@ -729,6 +778,44 @@ function sbq(){{
 }}
 function ra(){{st.rv=true;document.body.style.overflow='hidden';document.getElementById('resultsContainer').style.display='none';document.getElementById('quizContainer').style.display='block';rq(0);uqg()}}
 function rs(){{document.body.style.overflow='hidden';location.reload()}}
+
+// Result review UI — added independently; existing quiz functions above remain unchanged.
+function renderResultReview(){{
+  const list=document.getElementById('reviewList');
+  if(!list) return;
+  const esc=(v)=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+  const ansText=(q,a)=>a===null?'Not Answered':(q.opts[a]??'Not Answered');
+  list.innerHTML=qd.q.map((q,i)=>{{
+    const a=st.a[i];
+    const status=a===null?'unanswered':(a===q.ci?'correct':'incorrect');
+    const your=ansText(q,a), cor=ansText(q,q.ci);
+    const wrong=status==='incorrect';
+    return `<article class="review-card" data-status="${{status}}">
+      <div class="review-question-number">Question ${{i+1}}</div>
+      <div class="review-question-text">${{esc(q.txt)}}</div>
+      <div class="review-answer-box review-your-answer ${{wrong?'wrong':''}}">📝 <strong>Your Answer:</strong> ${{esc(your)}}</div>
+      <div class="review-answer-box review-correct-answer">✅ <strong>Correct Answer:</strong> ${{esc(cor)}}</div>
+      <div class="review-explanation">💡 <strong>Explanation:</strong> ${{esc(q.exp||'No explanation')}}</div>
+    </article>`;
+  }}).join('');
+  document.querySelectorAll('.result-filter').forEach(btn=>{{
+    btn.onclick=()=>{{
+      document.querySelectorAll('.result-filter').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const filter=btn.dataset.filter;
+      document.querySelectorAll('.review-card').forEach(card=>{{
+        card.classList.toggle('review-hidden',filter!=='all'&&card.dataset.status!==filter);
+      }});
+    }};
+  }});
+}}
+
+(function installResultReviewObserver(){{
+  const target=document.getElementById('resultsContainer');
+  if(!target) return;
+  const render=()=>{{if(target.style.display==='block') renderResultReview()}};
+  new MutationObserver(render).observe(target,{{attributes:true,attributeFilter:['style','class']}});
+}})();
 </script>
 </body>
 </html>"""
