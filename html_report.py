@@ -552,6 +552,7 @@ body{{font-family:'Poppins',-apple-system,BlinkMacSystemFont,sans-serif;backgrou
 <div id="resultsContainer">
 <div class="results-header">
 <div class="results-icon" id="ri"></div>
+<div id="rt" style="display:none"></div>
 <h2 class="results-main-title">🎯 Exam Result Summary</h2>
 <div class="results-subtitle">Exam completed · Negative Marking: {nm:g} per wrong answer</div>
 <div class="results-score"><span class="results-score-label">Final Score: <span id="rs">0 / {mm}</span></span></div>
