@@ -1,537 +1,569 @@
-"""Quiz Report PDF generator.
+import os
+import uuid
+import html
+import threading
+from datetime import datetime
 
-Generates a quiz report in the exact format:
-  • Page 1 : Header banner  +  Leaderboard table
-  • Page 2+: QUESTIONS & ANSWERS in a 2-column layout
-              (Q text, A/B/C/D options, Explanation)
+from flask import Flask, jsonify, send_file, request
+from weasyprint import HTML
 
-Hindi / Devanagari is rendered correctly via NotoSansDevanagari + HarfBuzz shaping.
+
+app = Flask(__name__)
+
+JOBS = {}
+
+
+def esc(value):
+    return html.escape(str(value or ""), quote=True)
+
+
+def nl(value):
+    return esc(value).replace("\n", "<br>")
+
+
+def get_correct_ids(value):
+    if isinstance(value, list):
+        result = []
+        for x in value:
+            try:
+                result.append(int(x))
+            except Exception:
+                pass
+        return result
+
+    try:
+        return [int(value)]
+    except Exception:
+        return [0]
+
+
+def option_letter(index):
+    letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    if 0 <= index < len(letters):
+        return letters[index]
+    return str(index + 1)
+
+
+def render_question_content(text):
+    """Render normal question text plus a pipe-delimited matching table."""
+    text = str(text or "")
+    lines = text.splitlines()
+    table_rows = []
+    normal_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if "|" in stripped:
+            cells = [c.strip() for c in stripped.strip("|").split("|")]
+            if len(cells) >= 2 and all(c and set(c.replace(":", "").strip()) <= {"-"} for c in cells):
+                continue
+            if len(cells) >= 2:
+                table_rows.append(cells)
+                continue
+        normal_lines.append(line)
+
+    parts = []
+    normal = "\n".join(normal_lines).strip()
+    if normal:
+        parts.append(f'<div class="question-normal">{nl(normal)}</div>')
+
+    if len(table_rows) >= 2:
+        cols = max(len(r) for r in table_rows)
+        rows_html = []
+        for ri, row in enumerate(table_rows):
+            row = row + [""] * (cols - len(row))
+            tag = "th" if ri == 0 else "td"
+            rows_html.append("<tr>" + "".join(f"<{tag}>{nl(cell)}</{tag}>" for cell in row) + "</tr>")
+        parts.append(
+            '<div class="matching-table-wrap">'
+            '<table class="matching-table"><tbody>'
+            + "".join(rows_html)
+            + "</tbody></table></div>"
+        )
+    return "".join(parts) if parts else nl(text)
+
+
+def build_pdf_html(data):
+
+    questions = data.get("questions_json", [])
+    solution_display = "inline"
+
+    exam_title = data.get("exam_title", "Mock Test")
+    mock_number = data.get("mock_number", "01")
+    generated_date = datetime.now().strftime("%d %B %Y")
+
+    question_html = ""
+
+    for index, q in enumerate(questions, start=1):
+
+        question_text = q.get("question", "")
+        options = q.get("options", [])
+
+        correct_ids = get_correct_ids(
+            q.get("correct_option_id", 0)
+        )
+
+        explanation = q.get("explanation", "")
+        reply_text = q.get("reply_text", "")
+
+        options_html = ""
+
+        for opt_index, option in enumerate(options):
+
+            letter = option_letter(opt_index)
+            is_correct = opt_index in correct_ids
+
+            cls = "option correct" if is_correct else "option"
+
+            options_html += f"""
+            <div class="{cls}">
+                <span class="option-letter">{letter})</span>
+                <span>{nl(option)}</span>
+            </div>
+            """
+
+        solution_html = ""
+
+        if solution_display == "inline":
+
+            solution_html = f"""
+            <div class="solution-box">
+                <div class="solution-title">
+                    Explanation:
+                </div>
+                <div class="solution-text">
+                    {nl(explanation)}
+                </div>
+            </div>
+            """
+
+        reference_html = ""
+
+        if reply_text:
+
+            reference_html = f"""
+            <div class="reference-box">
+                <b>Reference:</b>
+                {nl(reply_text)}
+            </div>
+            """
+
+        question_html += f"""
+        <div class="question-card">
+
+            <div class="question-header-line">
+                <span class="question-number">Q{index}</span>
+                <div class="question-text">
+                    {render_question_content(question_text)}
+                </div>
+            </div>
+
+            <div class="options">
+                {options_html}
+            </div>
+
+            {reference_html}
+            {solution_html}
+
+        </div>
+        """
+
+    return f"""
+<!DOCTYPE html>
+<html lang="hi">
+
+<head>
+<meta charset="UTF-8">
+<style>
+
+@font-face {{
+    font-family: "NotoHindi";
+    src: url("fonts/NotoSansDevanagari-Regular.ttf");
+    font-weight: 400;
+}}
+
+@font-face {{
+    font-family: "NotoHindi";
+    src: url("fonts/NotoSansDevanagari-Bold.ttf");
+    font-weight: 700;
+}}
+
+@page {{
+    size: A4;
+    margin: 20mm 13mm 18mm 13mm;
+
+    @top-left {{
+        content: "QUICK STUDY GROUP";
+        font-family: "NotoHindi", sans-serif;
+        font-size: 10pt;
+        font-weight: 800;
+        color: #8d1f26;
+        padding-bottom: 4px;
+        border-bottom: 1.2px solid #9b1c1c;
+    }}
+
+    @top-right {{
+        content: "GENERATED: {esc(generated_date)}";
+        font-family: "NotoHindi", sans-serif;
+        font-size: 7.5pt;
+        color: #777;
+        padding-bottom: 4px;
+        border-bottom: 1.2px solid #9b1c1c;
+    }}
+
+    @bottom-left {{
+        content: "QUICK STUDY GROUP";
+        font-family: "NotoHindi", sans-serif;
+        font-size: 8pt;
+        color: #888;
+        padding-top: 4px;
+        border-top: 1px solid #ddd;
+    }}
+
+    @bottom-right {{
+        content: "पृष्ठ " counter(page) " / " counter(pages);
+        font-family: "NotoHindi", sans-serif;
+        font-size: 8pt;
+        color: #777;
+        padding-top: 4px;
+        border-top: 1px solid #ddd;
+    }}
+}}
+
+@page :first {{
+    margin-top: 12mm;
+    @top-left {{ content: none; border: none; }}
+    @top-center {{ content: none; border: none; }}
+    @top-right {{ content: none; border: none; }}
+}}
+
+* {{
+    box-sizing: border-box;
+}}
+
+body {{
+    margin: 0;
+    background: #FFFFFF;
+    font-family: "NotoHindi", "Noto Sans Devanagari", sans-serif;
+    color: #161616;
+    font-size: 9pt;
+    line-height: 1.4;
+}}
+
+.main-title {{
+    border: 1.5px solid #1D4ED8;
+    border-radius: 15px;
+    background: #EFF6FF;
+    padding: 12px;
+    text-align: center;
+    margin-bottom: 12px;
+}}
+
+.main-brand {{
+    font-size: 18pt;
+    font-weight: 900;
+    color: #1E3A8A;
+    margin-bottom: 3px;
+}}
+
+.exam-title {{
+    font-size: 12pt;
+    font-weight: 800;
+    color: #222;
+}}
+
+.mock-number {{
+    font-size: 9.5pt;
+    font-weight: 700;
+    color: #8d1f26;
+    margin-top: 2px;
+}}
+
+.test-meta {{
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    font-size: 7.5pt;
+    color: #666;
+    margin-top: 5px;
+}}
+
+.questions-title {{
+    font-size: 11pt;
+    font-weight: 900;
+    color: #8d1f26;
+    border-bottom: 1px solid #d8b7b7;
+    padding-bottom: 3px;
+    margin-bottom: 8px;
+}}
+
+.questions-container {{
+    column-count: 2;
+    column-gap: 10mm;
+    column-fill: auto;
+}}
+
+/* Smooth rounded question card. The explanation remains inside this same card. */
+.question-card {{
+    display: block;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 10px;
+    padding: 9px 10px 10px 10px;
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-left: 4px solid #1d4ed8;
+    border-radius: 11px;
+    overflow: hidden;
+}}
+
+.question-header-line {{
+    display: block;
+}}
+
+.question-number {{
+    display: inline-block;
+    background: #1d4ed8;
+    color: #ffffff;
+    font-weight: 900;
+    font-size: 8.5pt;
+    padding: 2px 6px 2px 6px;
+    border-radius: 4px;
+    margin-right: 4px;
+    margin-bottom: 4px;
+}}
+
+.question-text {{
+    display: inline;
+    font-weight: 800;
+    font-size: 8.8pt;
+}}
+
+.options {{
+    margin-top: 3px;
+    margin-left: 0;
+}}
+
+/* Options are tight: no unnecessary vertical gap between A/B/C/D. */
+.option {{
+    display: block;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    padding: 2px 4px;
+    margin: 0;
+    font-size: 8.3pt;
+    color: #333;
+}}
+
+.option.correct {{
+    background: #F0FDF4;
+    color: #159A55;
+    border-radius: 4px;
+    font-weight: 700;
+}}
+
+.option.correct .option-letter,
+.option.correct span {{
+    color: #159A55;
+}}
+
+.option-letter {{
+    font-weight: 900;
+    color: #4b5563;
+    margin-right: 3px;
+}}
+
+.matching-table-wrap {{
+    margin: 5px 0;
+    width: 100%;
+    break-inside: avoid;
+    page-break-inside: avoid;
+}}
+
+.matching-table {{
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 7.8pt;
+    line-height: 1.2;
+}}
+
+.matching-table th, .matching-table td {{
+    border: 1px solid #777;
+    padding: 3px 4px;
+    vertical-align: middle;
+    text-align: left;
+    overflow-wrap: anywhere;
+}}
+
+.matching-table th:nth-child(1) {{
+    background: #FECACA;
+    font-weight: 800;
+}}
+
+.matching-table th:nth-child(2) {{
+    background: #BFDBFE;
+    font-weight: 800;
+}}
+
+.matching-table td {{
+    background: #FFFFFF;
+}}
+
+/* Explanation is a child of question-card: one integrated rounded block. */
+.solution-box {{
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 7px 9px;
+    background: #FFF9CC;
+    border: 1px solid #F5C423;
+    border-radius: 7px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+}}
+
+/* No separate yellow strip / no border-left accent here. */
+.solution-title {{
+    font-weight: 900;
+    color: #713f12;
+    font-size: 8.2pt;
+    margin-bottom: 2px;
+}}
+
+.solution-text {{
+    font-size: 7.6pt;
+    color: #4f4a35;
+    line-height: 1.3;
+}}
+
+.reference-box {{
+    display: block;
+    margin-top: 5px;
+    padding: 5px 7px;
+    background: #f8fafc;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    font-size: 7.6pt;
+}}
+
+.watermark {{
+    position: fixed;
+    top: 47%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-30deg);
+    font-size: 38pt;
+    font-weight: 900;
+    color: #9b1c1c;
+    opacity: .035;
+    z-index: -1;
+    white-space: nowrap;
+}}
+
+</style>
+</head>
+
+<body>
+
+<div class="watermark">
+    QUICK STUDY GROUP
+</div>
+
+<div class="main-title">
+    <div class="main-brand">QUICK STUDY GROUP</div>
+    <div class="exam-title">{esc(exam_title)}</div>
+    <div class="mock-number">Mock Test - {esc(mock_number)}</div>
+    <div class="test-meta">
+        <span>Questions: {len(questions)}</span>
+    </div>
+</div>
+
+<div class="questions-title">Questions & Solutions</div>
+
+<div class="questions-container">
+    {question_html}
+</div>
+
+</body>
+</html>
 """
 
-from __future__ import annotations
 
-import math
-import os
-import re
-import random
-from datetime import datetime
-from typing import Dict, List, Optional
-
-from fpdf import FPDF
-
-FONT_DIR = os.path.join(os.path.dirname(__file__), "assets", "fonts")
-
-FONT_REGULAR      = os.path.join(FONT_DIR, "NotoSans-Regular.ttf")
-FONT_BOLD         = os.path.join(FONT_DIR, "NotoSans-Bold.ttf")
-FONT_DEVA_REGULAR = os.path.join(FONT_DIR, "NotoSansDevanagari-Regular.ttf")
-FONT_DEVA_BOLD    = os.path.join(FONT_DIR, "NotoSansDevanagari-Bold.ttf")
-
-OPTION_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"]
-
-_TAG_RE = re.compile(r"<[^>]+>")
-_WS_RE  = re.compile(r"[ \t]+")
-
-# ── Page geometry ─────────────────────────────────────────────────────────────
-PAGE_W  = 210
-PAGE_H  = 297
-M_L     = 10          # left margin
-M_R     = 10          # right margin
-M_TOP   = 10          # top margin
-M_BOT   = 12          # bottom margin (footer lives here)
-PRINT_W = PAGE_W - M_L - M_R   # 190 mm
-
-# Two-column Q&A layout
-COL_GAP    = 5        # gap between columns
-COL_W      = (PRINT_W - COL_GAP) // 2    # ≈92 mm each
-COL_X      = [M_L, M_L + COL_W + COL_GAP]
-
-# Content vertical bounds for Q&A pages
-QA_TOP_Y    = 20      # y where Q&A content starts (after thin header)
-QA_BOTTOM_Y = PAGE_H - M_BOT - 3   # ≈282 mm
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _strip_html(text: Optional[str]) -> str:
-    if not text:
-        return ""
-    text = _TAG_RE.sub("", str(text))
-    text = (text.replace("&nbsp;", " ").replace("&amp;", "&")
-                .replace("&lt;", "<").replace("&gt;", ">")
-                .replace("&quot;", '"'))
-    lines = [_WS_RE.sub(" ", ln).strip() for ln in text.splitlines()]
-    return "\n".join(ln for ln in lines if ln)
-
-
-def _line_count(text: str, width_mm: float, chars_per_mm: float = 3.6) -> int:
-    """Estimate wrapped line count for *text* in a multi_cell of *width_mm*."""
-    if not text:
-        return 1
-    cpp = max(1, int(width_mm * chars_per_mm))
-    count = 0
-    for para in text.split("\n"):
-        count += max(1, math.ceil(len(para) / cpp))
-    return count
-
-
-def _q_height_estimate(q: Dict, col_w: float) -> float:
-    """Estimate total vertical mm needed to render one question block."""
-    q_text = _strip_html(q.get("question") or "")
-    opts   = [_strip_html(o) for o in (q.get("options") or [])]
-    exp    = _strip_html(q.get("explanation") or "")
-
-    h  = 2.0                                                 # top padding
-    h += 6.5 + (_line_count(q_text, col_w - 9) - 1) * 5.5  # question text
-    h += 1.5                                                 # gap
-    for opt in opts:
-        h += 5.0 + (_line_count(opt, col_w - 2) - 1) * 4.5 + 1.5
-    if exp:
-        h += 2.0
-        h += _line_count(exp, col_w - 4) * 4.5
-    h += 5.0                                                 # bottom + divider
-    return h
-
-
-# ── PDF class ─────────────────────────────────────────────────────────────────
-
-class QuizReportPDF(FPDF):
-    def __init__(self, quiz_name: str, channel: str):
-        super().__init__(orientation="P", unit="mm", format="A4")
-        self.quiz_name = quiz_name
-        self.channel   = channel
-        self.set_auto_page_break(auto=False)
-        self.set_margins(M_L, M_TOP, M_R)
-
-        self.add_font("Noto",     "",  FONT_REGULAR)
-        self.add_font("Noto",     "B", FONT_BOLD)
-        self.add_font("NotoDeva", "",  FONT_DEVA_REGULAR)
-        self.add_font("NotoDeva", "B", FONT_DEVA_BOLD)
-        self.set_fallback_fonts(["NotoDeva"])
-
-        try:
-            self.set_text_shaping(True)
-        except Exception:
-            pass
-
-    def header(self):
-        pass  # all headers drawn manually
-
-    def footer(self):
-        self.set_y(-10)
-        self.set_font("Noto", "", 7)
-        self.set_text_color(140, 140, 140)
-        self.cell(0, 5, f"Page {self.page_no()}", align="C")
-        self.set_text_color(0, 0, 0)
-
-
-# ── Page-1: header banner + leaderboard ───────────────────────────────────────
-
-def _write_page1(pdf: QuizReportPDF,
-                 quiz_name: str,
-                 channel: str,
-                 date_str: str,
-                 total_q: int,
-                 pos_mark: str,
-                 neg_mark: str,
-                 leaderboard: List[Dict]) -> None:
-
-    pdf.add_page()
-
-    # ── Top banner ────────────────────────────────────────────────────────
-    pdf.set_fill_color(20, 80, 170)
-    pdf.rect(0, 0, PAGE_W, 26, style="F")
-
-    pdf.set_xy(M_L, 3)
-    pdf.set_font("Noto", "B", 13)
-    pdf.set_text_color(255, 255, 255)
-    pdf.multi_cell(PRINT_W, 7, quiz_name, align="L")
-
-    pdf.set_x(M_L)
-    pdf.set_font("Noto", "", 8)
-    meta = f"{channel}   |   {date_str}   |   {total_q} Questions   |   +{pos_mark} / -{neg_mark}"
-    pdf.multi_cell(PRINT_W, 5, meta, align="L")
-
-    pdf.set_text_color(0, 0, 0)
-
-    # ── Leaderboard ───────────────────────────────────────────────────────
-    y = 32
-    pdf.set_xy(M_L, y)
-    pdf.set_font("Noto", "B", 11)
-    pdf.set_text_color(20, 80, 170)
-    pdf.cell(0, 7, "LEADERBOARD")
-    pdf.set_text_color(0, 0, 0)
-    y += 9
-
-    if not leaderboard:
-        pdf.set_xy(M_L, y)
-        pdf.set_font("Noto", "", 10)
-        pdf.cell(0, 7, "No participants.")
-        return
-
-    # Table header
-    headers    = ["Rank", "Participant", "Score", "Wrong", "Acc%", "Time"]
-    col_widths = [12, 76, 20, 18, 20, 28]       # adjust to fit 190 mm
-
-    row_h = 7
-    pdf.set_xy(M_L, y)
-    pdf.set_fill_color(230, 237, 255)
-    pdf.set_font("Noto", "B", 8)
-    x = M_L
-    for hdr, cw in zip(headers, col_widths):
-        pdf.set_xy(x, y)
-        pdf.cell(cw, row_h, hdr, border="B", fill=True, align="C")
-        x += cw
-    y += row_h
-
-    pdf.set_font("Noto", "", 8)
-    for rank_i, user in enumerate(leaderboard, start=1):
-        if y + row_h > QA_BOTTOM_Y:
-            break                                   # leaderboard truncated; rest on next page
-
-        total_att = user.get("correct", 0) + user.get("wrong", 0)
-        acc = (user["correct"] / total_att * 100) if total_att else 0
-        mins, secs = divmod(int(user.get("total_time", 0)), 60)
-        time_str = f"{mins}m {secs}s"
-
-        rank_icon = ""
-        if rank_i == 1:   rank_icon = "[1st] "
-        elif rank_i == 2: rank_icon = "[2nd] "
-        elif rank_i == 3: rank_icon = "[3rd] "
-
-        fill_color = None
-        if rank_i == 1:   fill_color = (255, 245, 157)
-        elif rank_i == 2: fill_color = (224, 224, 224)
-        elif rank_i == 3: fill_color = (255, 224, 178)
-
-        row_data = [
-            f"{rank_icon}{rank_i}.",
-            user.get("name", "")[:32],
-            f"{user.get('score', 0):.0f}",
-            str(user.get("wrong", 0)),
-            f"{acc:.0f}%",
-            time_str,
-        ]
-
-        x = M_L
-        for j, (val, cw) in enumerate(zip(row_data, col_widths)):
-            pdf.set_xy(x, y)
-            if fill_color:
-                pdf.set_fill_color(*fill_color)
-                pdf.cell(cw, row_h, val, border="B", fill=True,
-                         align="C" if j != 1 else "L")
-                pdf.set_fill_color(255, 255, 255)
-            else:
-                fill = (rank_i % 2 == 0)
-                if fill:
-                    pdf.set_fill_color(248, 250, 255)
-                pdf.cell(cw, row_h, val, border="B", fill=fill,
-                         align="C" if j != 1 else "L")
-                pdf.set_fill_color(255, 255, 255)
-            x += cw
-        y += row_h
-
-
-# ── Q&A rendering helpers ─────────────────────────────────────────────────────
-def _draw_qa_page_header(pdf: QuizReportPDF) -> None:
-    """Small top stripe; question cards remain the main focus."""
-    pdf.set_fill_color(20, 80, 170)
-    pdf.rect(0, 0, PAGE_W, 5, style="F")
-
-
-def _text_height(pdf: QuizReportPDF, text: str, width: float, line_h: float) -> float:
-    """Measure wrapped text height without changing the document."""
-    if not text:
-        return line_h
+def generate_pdf(job_id, data):
     try:
-        lines = pdf.multi_cell(width, line_h, text, dry_run=True, output="LINES")
-        return max(1, len(lines)) * line_h
-    except Exception:
-        chars = max(8, int(width * 3.2))
-        lines = sum(max(1, math.ceil(len(p) / chars)) for p in text.split("\n"))
-        return lines * line_h
+        JOBS[job_id] = {"status": "processing", "error": None}
+        pdf_path = f"/tmp/{job_id}.pdf"
+        
+        html_content = build_pdf_html(data)
+        
+        if not html_content:
+            raise ValueError("HTML content is empty")
+
+        HTML(
+            string=html_content,
+            base_url=os.path.dirname(os.path.abspath(__file__))
+        ).write_pdf(pdf_path)
+
+        JOBS[job_id] = {
+            "status": "done",
+            "error": None,
+            "file": pdf_path,
+        }
+
+    except Exception as exc:
+        JOBS[job_id] = {
+            "status": "error",
+            "error": str(exc),
+        }
 
 
-def _q_card_height(pdf: QuizReportPDF, q: Dict, card_w: float) -> float:
-    """Estimate the complete height of one question card."""
-    q_text = _strip_html(q.get("question") or "") or "(no question text)"
-    opts = [_strip_html(o) for o in (q.get("options") or [])]
-    exp = _strip_html(q.get("explanation") or "")
-    inner_w = card_w - 10
-
-    h = 6.5
-    h += max(7.0, _text_height(pdf, q_text, inner_w - 23, 5.4))
-    h += 2.5
-    for opt in opts:
-        h += max(5.5, _text_height(pdf, opt or "", inner_w - 14, 5.1)) + 1.5
-    if exp:
-        h += 3.0
-        h += 7.0 + _text_height(pdf, exp, inner_w - 16, 4.5) + 5.0
-    h += 5.0
-    return h
+@app.route("/")
+def home():
+    return jsonify({"service": "Quick Study Group PDF API", "status": "online", "version": "2.2"})
 
 
-def _render_question_card(pdf: QuizReportPDF,
-                         q: Dict,
-                         idx: int,
-                         y: float,
-                         card_w: float) -> float:
-    """Render one full-width question card matching the supplied reference."""
-    x = M_L
-    inner_x = x + 5
-    inner_w = card_w - 10
+@app.route("/api/generate", methods=["POST"])
+def generate():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or not data.get("questions_json"):
+        return jsonify({"error": "questions_json is required"}), 400
 
-    q_text = _strip_html(q.get("question") or "") or "(no question text)"
-    opts = [_strip_html(o) for o in (q.get("options") or [])]
-    exp = _strip_html(q.get("explanation") or "")
-    correct_id = q.get("correct_option_id")
-    card_h = _q_card_height(pdf, q, card_w)
+    job_id = uuid.uuid4().hex
+    JOBS[job_id] = {"status": "queued", "error": None}
+    
+    thread = threading.Thread(target=generate_pdf, args=(job_id, data), daemon=True)
+    thread.start()
 
-    # White card + blue left accent.
-    pdf.set_fill_color(255, 255, 255)
-    try:
-        pdf.rounded_rect(x, y, card_w, card_h, 4.0, style="F")
-    except Exception:
-        pdf.rect(x, y, card_w, card_h, style="F")
-
-    pdf.set_draw_color(30, 86, 190)
-    pdf.set_line_width(1.25)
-    pdf.line(x + 1.0, y + 2.0, x + 1.0, y + card_h - 2.0)
-    pdf.set_line_width(0.2)
-
-    # Blue Q-number badge.
-    badge_w, badge_h = 13, 7.5
-    pdf.set_fill_color(28, 88, 196)
-    pdf.set_text_color(255, 255, 255)
-    pdf.set_font("Noto", "B", 9)
-    try:
-        pdf.rounded_rect(inner_x, y + 4.0, badge_w, badge_h, 2.2, style="F")
-    except Exception:
-        pdf.rect(inner_x, y + 4.0, badge_w, badge_h, style="F")
-    pdf.set_xy(inner_x, y + 4.2)
-    pdf.cell(badge_w, 6.5, f"Q{idx}", align="C")
-
-    # Question text.
-    qx = inner_x + badge_w + 3.5
-    qw = inner_w - badge_w - 3.5
-    pdf.set_xy(qx, y + 3.5)
-    pdf.set_font("NotoDeva", "B", 9.6)
-    pdf.set_text_color(20, 20, 20)
-    pdf.multi_cell(qw, 5.4, q_text)
-    cy = max(pdf.get_y(), y + 12.0) + 2.5
-
-    # Options (all option boxes rendered as rounded cards/pills).
-    for i, opt in enumerate(opts):
-        letter = OPTION_LETTERS[i] if i < len(OPTION_LETTERS) else str(i + 1)
-        is_correct = (i == correct_id)
-        ox = inner_x + 2
-        ow = inner_w - 4
-        oh = max(5.1, _text_height(pdf, opt or "", ow - 14, 5.1))
-
-        if is_correct:
-            pdf.set_fill_color(239, 252, 244)
-            pdf.set_text_color(21, 154, 85)
-            font_style = "B"
-        else:
-            pdf.set_fill_color(248, 249, 251)
-            pdf.set_text_color(45, 45, 45)
-            font_style = ""
-
-        try:
-            pdf.rounded_rect(ox, cy, ow, oh, 1.8, style="F")
-        except Exception:
-            pdf.rect(ox, cy, ow, oh, style="F")
-
-        pdf.set_font("Noto", "B" if is_correct else "", 9.3)
-        pdf.set_xy(ox + 2, cy + 0.7)
-        pdf.cell(10, 5.5, f"{letter})", align="L")
-
-        # Hindi/Devanagari option text.
-        pdf.set_font("NotoDeva", font_style, 8.8)
-        pdf.set_xy(ox + 12, cy + 0.7)
-        pdf.multi_cell(ow - 14, 5.1, opt or "")
-        cy += oh + 1.5
-
-    # Yellow explanation box.
-    if exp:
-        cy += 2.0
-        ex = inner_x + 1
-        ew = inner_w - 2
-        text_x = ex + 5
-        text_w = ew - 10
-        exp_body_h = _text_height(pdf, exp, text_w, 4.5)
-        exp_h = 8.0 + exp_body_h + 5.0
-
-        pdf.set_fill_color(255, 249, 204)
-        pdf.set_draw_color(245, 196, 35)
-        pdf.set_line_width(0.7)
-        try:
-            pdf.rounded_rect(ex, cy, ew, exp_h, 2.8, style="DF")
-        except Exception:
-            pdf.rect(ex, cy, ew, exp_h, style="DF")
-        pdf.set_line_width(0.2)
-
-        # Yellow left-side accent stripe for the explanation box.
-        pdf.set_fill_color(245, 196, 35)
-        try:
-            pdf.rounded_rect(ex + 0.55, cy + 1.0, 2.0, max(0.0, exp_h - 2.0), 1.0, style="F")
-        except Exception:
-            pdf.rect(ex + 0.4, cy + 1.0, 1.4, max(0.0, exp_h - 2.0), style="F")
-
-        # Explanation label + Hindi body.
-        pdf.set_xy(text_x, cy + 2.2)
-        pdf.set_font("Noto", "B", 8.8)
-        pdf.set_text_color(112, 70, 20)
-        pdf.cell(text_w, 4.5, "Explanation:")
-        label_bottom = pdf.get_y() + 4.5
-        pdf.set_xy(text_x, label_bottom + 0.5)
-        pdf.set_font("NotoDeva", "", 8.1)
-        pdf.set_text_color(100, 72, 35)
-        pdf.multi_cell(text_w, 4.1, exp)
-        cy = max(cy + exp_h, pdf.get_y())
-
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_fill_color(255, 255, 255)
-    pdf.set_draw_color(0, 0, 0)
-    return y + card_h
+    return jsonify({
+        "status": "queued",
+        "job_id": job_id,
+        "progress_url": f"/api/progress/{job_id}",
+        "download_url": f"/api/download/{job_id}",
+    })
 
 
-def _write_qa_pages(pdf: QuizReportPDF, questions: List[Dict]) -> None:
-    """Write questions in the compact two-column card layout from the reference."""
-    pdf.add_page()
-    _draw_qa_page_header(pdf)
+@app.route("/api/progress/<job_id>")
+def progress(job_id):
+    job = JOBS.get(job_id)
+    if not job:
+        return jsonify({"status": "error", "error": "Job not found"}), 404
+    return jsonify({"status": job.get("status"), "error": job.get("error")})
 
-    top = QA_TOP_Y
-    bottom = QA_BOTTOM_Y
-    columns = [COL_X[0], COL_X[1]]
-    col_y = [top, top]
 
-    for idx, q in enumerate(questions, start=1):
-        try:
-            needed = _q_card_height(pdf, q, COL_W)
-        except Exception:
-            needed = 80.0
+@app.route("/api/download/<job_id>")
+def download(job_id):
+    job = JOBS.get(job_id)
+    if not job or job.get("status") != "done":
+        return jsonify({"error": "PDF not ready or not found"}), 404
 
-        # Fill the shorter column first, like the reference's magazine-style layout.
-        col = 0 if col_y[0] <= col_y[1] else 1
-        if col_y[col] + needed > bottom and col_y[0] + needed > bottom and col_y[1] + needed > bottom:
-            pdf.add_page()
-            _draw_qa_page_header(pdf)
-            col_y = [top, top]
-            col = 0
+    pdf_path = job.get("file")
+    if not pdf_path or not os.path.exists(pdf_path):
+        return jsonify({"error": "PDF file not found"}), 404
 
-        # If the selected column cannot fit, try the other one.
-        if col_y[col] + needed > bottom:
-            other = 1 - col
-            if col_y[other] + needed <= bottom:
-                col = other
-            else:
-                pdf.add_page()
-                _draw_qa_page_header(pdf)
-                col_y = [top, top]
-                col = 0
+    return send_file(pdf_path, mimetype="application/pdf", as_attachment=False, download_name="MockTest_With_Solutions.pdf")
 
-        # Render using the column's x position while preserving all existing functions.
-        old_ml = pdf.l_margin
-        try:
-            if col == 0:
-                y_end = _render_question_card(pdf, q, idx, col_y[col], COL_W)
-            else:
-                shift = columns[col] - M_L
-                orig_set_xy = pdf.set_xy
-                orig_rect = getattr(pdf, 'rect', None)
-                orig_rounded = getattr(pdf, 'rounded_rect', None)
-                orig_line = pdf.line
 
-                def shifted_set_xy(x, y):
-                    return orig_set_xy(x + shift, y)
-                pdf.set_xy = shifted_set_xy
-
-                if orig_rect:
-                    def shifted_rect(x, y, w, h, *args, **kwargs):
-                        return orig_rect(x + shift, y, w, h, *args, **kwargs)
-                    pdf.rect = shifted_rect
-                if orig_rounded:
-                    def shifted_rounded(x, y, w, h, r, *args, **kwargs):
-                        return orig_rounded(x + shift, y, w, h, r, *args, **kwargs)
-                    pdf.rounded_rect = shifted_rounded
-
-                def shifted_line(x1, y1, x2, y2):
-                    return orig_line(x1 + shift, y1, x2 + shift, y2)
-                pdf.line = shifted_line
-                try:
-                    y_end = _render_question_card(pdf, q, idx, col_y[col], COL_W)
-                finally:
-                    pdf.set_xy = orig_set_xy
-                    if orig_rect:
-                        pdf.rect = orig_rect
-                    if orig_rounded:
-                        pdf.rounded_rect = orig_rounded
-                    pdf.line = orig_line
-        except Exception:
-            y_end = col_y[col] + needed
-
-        col_y[col] = y_end + 5.0
-
-# ── Public API ────────────────────────────────────────────────────────────────
-
-def generate_mock_test_pdf(
-    quiz: Dict,
-    output_path: str,
-    channel: str = "@AIpha_World",
-    leaderboard: Optional[List[Dict]] = None,
-    shuffle: bool = False,
-) -> str:
-    """
-    Render *quiz* to a PDF at *output_path*.
-
-    Parameters
-    ----------
-    quiz        : MongoDB quiz document (must contain 'questions' list)
-    output_path : destination file path
-    channel     : channel handle shown in header
-    leaderboard : list of participant result dicts (optional)
-    shuffle     : if True, randomise question order in the PDF
-
-    Returns the output_path.
-    """
-    quiz_name  = (quiz.get("quiz_name") or "Quiz").strip() or "Quiz"
-    questions  = list(quiz.get("questions") or [])
-
-    if not questions:
-        raise ValueError("Quiz has no questions to export.")
-
-    # Shuffle question order if requested
-    if shuffle:
-        random.shuffle(questions)
-
-    neg = quiz.get("negative_marking") or quiz.get("negative_marks") or 0
-    try:
-        neg = float(neg)
-    except (TypeError, ValueError):
-        neg = 0.0
-
-    pos_str = "1"
-    neg_str = f"{neg:g}" if neg else "0"
-    date_str = datetime.now().strftime("%d %b %Y, %I:%M %p IST")
-    total_q = len(questions)
-
-    pdf = QuizReportPDF(quiz_name=quiz_name, channel=channel)
-
-    # Page 1: header + leaderboard
-    _write_page1(
-        pdf,
-        quiz_name=quiz_name,
-        channel=channel,
-        date_str=date_str,
-        total_q=total_q,
-        pos_mark=pos_str,
-        neg_mark=neg_str,
-        leaderboard=leaderboard or [],
-    )
-
-    # Pages 2+: Q&A
-    _write_qa_pages(pdf, questions)
-
-    os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else ".", exist_ok=True)
-    pdf.output(output_path)
-    return output_path
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", "10000"))
+    app.run(host="0.0.0.0", port=port)
