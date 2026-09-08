@@ -567,6 +567,9 @@ class SessionManager:
             session = self.sessions.pop(chat_id, None)
             self.last_activity.pop(chat_id, None)
             group_answer_events.pop(chat_id, None)
+            for _poll_id, _chat_id in list(private_poll_chats.items()):
+                if _chat_id == chat_id:
+                    private_poll_chats.pop(_poll_id, None)
             
 
             if chat_id in self.active_quiz_tasks:
@@ -641,6 +644,9 @@ session_manager = SessionManager()
 
 # Per-chat in-memory wake events for group quiz question advancement.
 group_answer_events: Dict[int, asyncio.Event] = {}
+
+# Per-poll private quiz lookup. This avoids scanning every session when a user answers.
+private_poll_chats: Dict[str, int] = {}
 
 # ═══════════════════════════════════════════════════════════════════════════
 # SCHEDULED QUIZ MANAGER
@@ -1416,6 +1422,7 @@ async def send_private_question(chat_id: int, context: ContextTypes.DEFAULT_TYPE
         
         if poll_msg:
             session["active_poll_id"] = poll_msg.poll.id
+            session["active_poll_message_id"] = poll_msg.message_id
             session["waiting_for_answer"] = True
             session["poll_start_time"] = time.time()
             session["current_index"] = question_index
@@ -1428,7 +1435,7 @@ async def send_private_question(chat_id: int, context: ContextTypes.DEFAULT_TYPE
             }
             
             await session_manager.update_session(chat_id, session)
-            
+            private_poll_chats[poll_msg.poll.id] = chat_id
 
             asyncio.create_task(private_question_timeout(chat_id, poll_msg.poll.id, timer))
         else:
@@ -1454,8 +1461,10 @@ async def private_question_timeout(chat_id: int, poll_id: str, timer: int):
         
         session = await session_manager.get_session(chat_id)
         if not session or session.get("active_poll_id") != poll_id:
+            private_poll_chats.pop(poll_id, None)
             return
         
+        private_poll_chats.pop(poll_id, None)
         session["waiting_for_answer"] = False
         current_idx = session.get("current_index", 0)
         session["current_index"] = current_idx + 1
@@ -1479,50 +1488,74 @@ async def private_question_timeout(chat_id: int, poll_id: str, timer: int):
     except Exception as e:
         logger.error(f"Error in private question timeout: {e}", exc_info=True)
 
-async def handle_private_poll_answer(poll_id: str, user_id: int, 
-                                     option_id: int, current_time: float):
-    """Handle poll answer in private chat"""
+async def handle_private_poll_answer(poll_id: str, user_id: int,
+                                      option_id: int, current_time: float):
+    """Handle a private quiz answer and advance immediately."""
     try:
+        # Resolve the session directly from the poll id.  PollAnswer updates do
+        # not contain chat_id, so keeping this small lookup avoids depending on
+        # a timer or scanning unrelated sessions.
+        chat_id = private_poll_chats.get(poll_id)
+        if chat_id is None:
+            # Backward-safe fallback for any session created before the mapping.
+            for candidate_chat_id in list(session_manager.sessions.keys()):
+                session = await session_manager.get_session(candidate_chat_id)
+                if session and session.get("is_private") and poll_id == session.get("active_poll_id"):
+                    chat_id = candidate_chat_id
+                    break
 
-        for chat_id in list(session_manager.sessions.keys()):
-            session = await session_manager.get_session(chat_id)
-            
-            if not session or not session.get("is_private"):
-                continue
-            
-            if poll_id == session.get("active_poll_id"):
+        if chat_id is None:
+            logger.warning(f"PRIVATE POLL ANSWER: no active session for poll={poll_id}, user={user_id}")
+            return
 
-                if user_id not in session["participants"]:
-                    session["participants"][user_id] = {
-                        "name": "You",
-                        "answers": {}
-                    }
-                
-                session["participants"][user_id]["answers"][poll_id] = {
-                    "option": option_id,
-                    "time": current_time
-                }
-                
-                session["waiting_for_answer"] = False
-                current_idx = session.get("current_index", 0)
-                
-                await session_manager.update_session(chat_id, session)
-                
+        session = await session_manager.get_session(chat_id)
+        if not session or not session.get("is_private"):
+            private_poll_chats.pop(poll_id, None)
+            return
 
-                if session.get("is_last_question_in_section"):
-                    session["is_last_question_in_section"] = False
-                    await session_manager.update_session(chat_id, session)
-                    await end_private_section(chat_id)
-                else:
+        # Ignore stale/duplicate answers from an older poll.
+        if poll_id != session.get("active_poll_id") or not session.get("waiting_for_answer"):
+            private_poll_chats.pop(poll_id, None)
+            return
 
-                    context = session.get("context")
-                    if context and current_idx + 1 < len(session.get("questions", [])):
-                        await send_private_question(chat_id, context, current_idx + 1)
-                    else:
-                        await end_private_quiz(chat_id, context)
-                
-                break
-    
+        if user_id not in session["participants"]:
+            session["participants"][user_id] = {
+                "name": "You",
+                "answers": {}
+            }
+
+        session["participants"][user_id]["answers"][poll_id] = {
+            "option": option_id,
+            "time": current_time
+        }
+
+        session["waiting_for_answer"] = False
+        current_idx = session.get("current_index", 0)
+        private_poll_chats.pop(poll_id, None)
+
+        await session_manager.update_session(chat_id, session)
+        logger.info(f"PRIVATE POLL ANSWER RECEIVED: chat={chat_id}, poll={poll_id}, user={user_id} -> advancing immediately")
+
+        # Close the answered poll immediately.  The configured timer remains
+        # the timeout fallback only; it must never delay a submitted answer.
+        try:
+            await session["context"].bot.stop_poll(chat_id=chat_id, message_id=session.get("active_poll_message_id"))
+        except Exception:
+            # Some Telegram clients/API states may already have closed the poll;
+            # this must not block the next question.
+            pass
+
+        if session.get("is_last_question_in_section"):
+            session["is_last_question_in_section"] = False
+            await session_manager.update_session(chat_id, session)
+            await end_private_section(chat_id)
+        else:
+            context = session.get("context")
+            if context and current_idx + 1 < len(session.get("questions", [])):
+                await send_private_question(chat_id, context, current_idx + 1)
+            else:
+                await end_private_quiz(chat_id, context)
+
     except Exception as e:
         logger.error(f"Error handling private poll answer: {e}", exc_info=True)
 
