@@ -13,7 +13,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from PIL import Image, ImageDraw, ImageFont
 
-_MARKER = "_RICH_VISUAL_TABLE_INSTALLED_V1"
+_MARKER = "_RICH_VISUAL_TABLE_INSTALLED_V2"
+_STATE_KEY = "_RICH_QUESTION_STATE"
 
 _STRUCTURED = [
     re.compile(r"(?:कथन\s*\(A\)|Assertion\s*\(A\))\s*:", re.I),
@@ -225,13 +226,23 @@ async def _wrapped_preamble(original, context: Any, chat_id: int, question: str,
                             options=None, question_number: int = 0,
                             total_questions: int = 0, explanation: str = None,
                             correct_option_id: int = None) -> bool:
+    # Keep the exact option ordering/correct index that the existing bot is
+    # about to use.  The companion prepare_poll_content() may remove helper
+    # rows from old matching questions, so safe_send_poll() can remap the
+    # correct answer to the final 4 visible poll options.
+    state = _STATE.get(chat_id)
+    _STATE[chat_id] = {
+        "options": list(options or []),
+        "correct": correct_option_id,
+        "question_number": question_number,
+    }
+
     if _is_structured(question, options):
         try:
             card = _render_card(question, question_number, total_questions)
             await context.bot.send_photo(chat_id=chat_id, photo=card)
             return True
         except Exception:
-            # Fall back to the bot's original renderer rather than breaking the quiz.
             pass
     try:
         result = await original(context, chat_id, question, options, question_number,
@@ -241,22 +252,77 @@ async def _wrapped_preamble(original, context: Any, chat_id: int, question: str,
         return False
 
 
+def _norm_option(value: Any) -> str:
+    s = str(value or "").strip()
+    s = re.sub(r"^\s*[A-Da-d1-4][\)\.\]:\-]\s*", "", s)
+    s = re.sub(r"\s+", " ", s)
+    return s.casefold()
+
+
+def _repair_poll_kwargs(chat_id: int, options: List[str], kwargs: Dict[str, Any]):
+    """Repair only an option-index mismatch introduced by question cleanup.
+
+    Telegram quiz polls use a zero-based correct_option_id.  Some legacy
+    matching rows contain extra helper/table rows; bot.py's existing
+    prepare_poll_content() can then reduce the visible options to four while
+    leaving the old index untouched.  We remap by the actual correct option
+    text, never by position alone.
+    """
+    cid = kwargs.get("correct_option_id")
+    if not isinstance(cid, int):
+        return options, kwargs
+    if 0 <= cid < len(options):
+        return options, kwargs
+
+    st = _STATE.get(chat_id) or {}
+    source = st.get("options") or []
+    source_cid = st.get("correct")
+    if not isinstance(source_cid, int) or not (0 <= source_cid < len(source)):
+        return options, kwargs
+
+    target = _norm_option(source[source_cid])
+    for idx, opt in enumerate(options):
+        if _norm_option(opt) == target:
+            fixed = dict(kwargs)
+            fixed["correct_option_id"] = idx
+            return options, fixed
+    return options, kwargs
+
+
+_STATE: Dict[int, Dict[str, Any]] = {}
+
+
+async def _wrapped_safe_send_poll(original_poll, context: Any, chat_id: int,
+                                  question: str, options: List[str], **kwargs):
+    fixed_options, fixed_kwargs = _repair_poll_kwargs(chat_id, options, kwargs)
+    return await original_poll(context, chat_id, question, fixed_options, **fixed_kwargs)
+
+
 def install(namespace: Dict[str, Any]) -> bool:
-    """Install the visual card wrapper without editing existing function bodies."""
+    """Install visual cards plus a non-invasive poll-index repair wrapper."""
     if namespace.get(_MARKER):
         return True
-    original = namespace.get("send_question_preamble")
-    if not callable(original):
+
+    original_preamble = namespace.get("send_question_preamble")
+    original_poll = namespace.get("safe_send_poll")
+    if not callable(original_preamble) or not callable(original_poll):
         return False
 
-    async def wrapped(context, chat_id, question, options=None,
-                      question_number=0, total_questions=0,
-                      explanation=None, correct_option_id=None):
-        return await _wrapped_preamble(original, context, chat_id, question, options,
-                                       question_number, total_questions, explanation,
-                                       correct_option_id)
+    async def wrapped_preamble(context, chat_id, question, options=None,
+                               question_number=0, total_questions=0,
+                               explanation=None, correct_option_id=None):
+        return await _wrapped_preamble(
+            original_preamble, context, chat_id, question, options,
+            question_number, total_questions, explanation, correct_option_id
+        )
 
-    namespace["send_question_preamble"] = wrapped
-    namespace["send_full_question_text"] = wrapped
+    async def wrapped_poll(context, chat_id, question, options, **kwargs):
+        return await _wrapped_safe_send_poll(
+            original_poll, context, chat_id, question, options, **kwargs
+        )
+
+    namespace["send_question_preamble"] = wrapped_preamble
+    namespace["send_full_question_text"] = wrapped_preamble
+    namespace["safe_send_poll"] = wrapped_poll
     namespace[_MARKER] = True
     return True
