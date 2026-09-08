@@ -253,21 +253,25 @@ def _text_height(pdf: QuizReportPDF, text: str, width: float, line_h: float) -> 
 
 
 def _q_card_height(pdf: QuizReportPDF, q: Dict, card_w: float) -> float:
-    """Estimate the complete height of one question card."""
+    """Estimate the complete height of one independent rounded question card."""
     q_text = _strip_html(q.get("question") or "") or "(no question text)"
     opts = [_strip_html(o) for o in (q.get("options") or [])]
     exp = _strip_html(q.get("explanation") or "")
     inner_w = card_w - 10
 
-    h = 6.5
+    h = 7.0
     h += max(7.0, _text_height(pdf, q_text, inner_w - 23, 5.4))
-    h += 2.5
+    h += 2.0
+
+    # Compact option spacing.
     for opt in opts:
-        h += max(7.0, _text_height(pdf, opt or "", inner_w - 16, 5.1)) + 1.5
+        h += max(5.8, _text_height(pdf, opt or "", inner_w - 16, 5.1)) + 0.8
+
     if exp:
-        h += 3.0
-        h += 7.0 + _text_height(pdf, exp, inner_w - 16, 4.5) + 5.0
-    h += 5.0
+        h += 2.5
+        h += 7.5 + _text_height(pdf, exp, inner_w - 14, 4.3) + 4.5
+
+    h += 4.5
     return h
 
 
@@ -276,7 +280,7 @@ def _render_question_card(pdf: QuizReportPDF,
                          idx: int,
                          y: float,
                          card_w: float) -> float:
-    """Render one full-width question card matching the supplied reference."""
+    """Render ONE complete question as ONE independent rounded card."""
     x = M_L
     inner_x = x + 5
     inner_w = card_w - 10
@@ -287,27 +291,31 @@ def _render_question_card(pdf: QuizReportPDF,
     correct_id = q.get("correct_option_id")
     card_h = _q_card_height(pdf, q, card_w)
 
-    # White card + blue left accent.
+    # Main card: smooth rounded rectangle with subtle border.
     pdf.set_fill_color(255, 255, 255)
+    pdf.set_draw_color(205, 210, 218)
+    pdf.set_line_width(0.45)
     try:
-        pdf.rounded_rect(x, y, card_w, card_h, 4.0, style="F")
+        pdf.rounded_rect(x, y, card_w, card_h, 3.0, style="DF")
     except Exception:
-        pdf.rect(x, y, card_w, card_h, style="F")
+        pdf.rect(x, y, card_w, card_h, style="DF")
 
+    # Blue accent is part of the card edge.
     pdf.set_draw_color(30, 86, 190)
     pdf.set_line_width(1.25)
-    pdf.line(x + 1.0, y + 2.0, x + 1.0, y + card_h - 2.0)
+    pdf.line(x + 1.0, y + 3.0, x + 1.0, y + card_h - 3.0)
     pdf.set_line_width(0.2)
 
-    # Blue Q-number badge.
-    badge_w, badge_h = 13, 7.5
+    # Rounded Q badge.
+    badge_w, badge_h = 13.5, 7.5
     pdf.set_fill_color(28, 88, 196)
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("Noto", "B", 9)
     try:
-        pdf.rounded_rect(inner_x, y + 4.0, badge_w, badge_h, 1.5, style="F")
+        pdf.rounded_rect(inner_x, y + 4.0, badge_w, badge_h, 2.0, style="F")
     except Exception:
         pdf.rect(inner_x, y + 4.0, badge_w, badge_h, style="F")
+
     pdf.set_xy(inner_x, y + 4.2)
     pdf.cell(badge_w, 6.5, f"Q{idx}", align="C")
 
@@ -318,15 +326,16 @@ def _render_question_card(pdf: QuizReportPDF,
     pdf.set_font("NotoDeva", "B", 9.6)
     pdf.set_text_color(20, 20, 20)
     pdf.multi_cell(qw, 5.4, q_text)
-    cy = max(pdf.get_y(), y + 12.0) + 2.5
+    cy = max(pdf.get_y(), y + 12.0) + 2.0
 
-    # Options.
+    # Options: each row remains inside this same question card.
     for i, opt in enumerate(opts):
         letter = OPTION_LETTERS[i] if i < len(OPTION_LETTERS) else str(i + 1)
         is_correct = (i == correct_id)
+
         ox = inner_x + 2
         ow = inner_w - 4
-        oh = max(5.5, _text_height(pdf, opt or "", ow - 14, 5.1))
+        oh = max(5.8, _text_height(pdf, opt or "", ow - 14, 5.1))
 
         if is_correct:
             pdf.set_fill_color(239, 252, 244)
@@ -341,63 +350,55 @@ def _render_question_card(pdf: QuizReportPDF,
             pdf.set_text_color(45, 45, 45)
             font_style = ""
 
-        # IMPORTANT: NotoSansDevanagari is used for Hindi text, but the
-        # option letters A/B/C/D must use the Latin Noto font.  Otherwise
-        # the letters can disappear on some FPDF/font configurations.
         pdf.set_font("Noto", "B" if is_correct else "", 9.3)
-        pdf.set_xy(ox + 2, cy + 0.7)
+        pdf.set_xy(ox + 2, cy + 0.25)
         pdf.cell(10, 5.5, f"{letter})", align="L")
 
-        # Hindi/Devanagari option text.
         pdf.set_font("NotoDeva", font_style, 8.8)
-        pdf.set_xy(ox + 12, cy + 0.7)
+        pdf.set_xy(ox + 12, cy + 0.25)
         pdf.multi_cell(ow - 14, 5.1, opt or "")
-        cy += oh
 
-    # Yellow explanation box.
+        cy += oh + 0.8
+
+    # Explanation is a single rounded box INSIDE the same question card.
+    # No separate yellow strip is created outside it.
     if exp:
-        cy += 2.0
+        cy += 1.5
+
         ex = inner_x + 1
         ew = inner_w - 2
         text_x = ex + 5
         text_w = ew - 10
-        exp_body_h = _text_height(pdf, exp, text_w, 4.5)
-        exp_h = 8.0 + exp_body_h + 5.0
+
+        exp_body_h = _text_height(pdf, exp, text_w, 4.3)
+        exp_h = 7.5 + exp_body_h + 4.5
 
         pdf.set_fill_color(255, 249, 204)
         pdf.set_draw_color(245, 196, 35)
         pdf.set_line_width(0.7)
         try:
-            pdf.rounded_rect(ex, cy, ew, exp_h, 2.0, style="DF")
+            pdf.rounded_rect(ex, cy, ew, exp_h, 2.2, style="DF")
         except Exception:
             pdf.rect(ex, cy, ew, exp_h, style="DF")
         pdf.set_line_width(0.2)
 
-        # Yellow left-side accent stripe for the explanation box.
-        pdf.set_fill_color(245, 196, 35)
-        # Keep the yellow accent inside the rounded box so its ends stay softly rounded.
-        try:
-            pdf.rounded_rect(ex + 0.4, cy + 1.0, 1.4, max(0.0, exp_h - 2.0), 0.7, style="F")
-        except Exception:
-            pdf.rect(ex + 0.4, cy + 1.0, 1.4, max(0.0, exp_h - 2.0), style="F")
-
-        # Explanation label + Hindi body, matching the supplied reference.
-        pdf.set_xy(text_x, cy + 2.2)
+        pdf.set_xy(text_x, cy + 2.0)
         pdf.set_font("Noto", "B", 8.8)
         pdf.set_text_color(112, 70, 20)
         pdf.cell(text_w, 4.5, "Explanation:")
+
         label_bottom = pdf.get_y() + 4.5
-        pdf.set_xy(text_x, label_bottom + 0.5)
+        pdf.set_xy(text_x, label_bottom + 0.2)
         pdf.set_font("NotoDeva", "", 8.1)
         pdf.set_text_color(100, 72, 35)
         pdf.multi_cell(text_w, 4.1, exp)
+
         cy = max(cy + exp_h, pdf.get_y())
 
     pdf.set_text_color(0, 0, 0)
     pdf.set_fill_color(255, 255, 255)
     pdf.set_draw_color(0, 0, 0)
     return y + card_h
-
 
 def _write_qa_pages(pdf: QuizReportPDF, questions: List[Dict]) -> None:
     """Write questions in the compact two-column card layout from the reference."""
