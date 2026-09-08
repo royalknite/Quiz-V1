@@ -1896,13 +1896,16 @@ async def run_group_quiz_no_sections(chat_id: int, start_index: int):
         if timer < 10:
             timer = 10
         
-        try:
-            await asyncio.sleep(timer + 3)  # Wait for poll to end + buffer
-        except asyncio.CancelledError:
-            raise
-        
-
-        await asyncio.sleep(1)
+        # Keep the existing timer as the fallback, but advance immediately
+        # when a participant submits an answer instead of waiting for timeout.
+        deadline = time.time() + timer + 3
+        while time.time() < deadline:
+            session = await session_manager.get_session(chat_id)
+            if not session:
+                return
+            if session.get("answered_poll_id") == session.get("current_poll_id"):
+                break
+            await asyncio.sleep(0.25)
     
     logger.info(f"Quiz completed all questions for chat {chat_id}")
 
@@ -1956,13 +1959,16 @@ async def run_group_quiz_with_sections(chat_id: int, start_index: int):
             if timer < 10:
                 timer = 10
             
-            try:
-                await asyncio.sleep(timer + 3)
-            except asyncio.CancelledError:
-                raise
-            
-
-            await asyncio.sleep(1)
+            # Keep the existing timer as the fallback, but advance immediately
+            # when a participant submits an answer instead of waiting for timeout.
+            deadline = time.time() + timer + 3
+            while time.time() < deadline:
+                session = await session_manager.get_session(chat_id)
+                if not session:
+                    return
+                if session.get("answered_poll_id") == session.get("current_poll_id"):
+                    break
+                await asyncio.sleep(0.25)
         
 
         await end_group_section(chat_id, section)
@@ -2173,6 +2179,10 @@ async def send_group_question(chat_id: int, question_idx: int, custom_timer: int
                 "correct_option": correct_option_id,
                 "sent_time": current_time
             }
+            # Signal used only by the group quiz runner: once any participant
+            # answers, the runner can immediately move to the next question.
+            session["answered_poll_id"] = None
+            session["current_poll_id"] = poll_msg.poll.id
             session["current_index"] = question_idx + 1
             await session_manager.update_session(chat_id, session)
             
@@ -3241,6 +3251,9 @@ async def handle_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE)
                     "option": option_id,
                     "time": current_time
                 }
+                # Signal the group runner so it can show the next question
+                # immediately after an answer. Timer remains the fallback.
+                session["answered_poll_id"] = poll_id
                 
                 await session_manager.update_session(chat_id, session)
                 break
