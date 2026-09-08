@@ -3389,7 +3389,8 @@ async def post_shutdown(application: Application):
     db_manager.close()
     
     logger.info("✓ Bot shutdown complete")
-
+    
+import rich_quiz; rich_quiz.install(globals())
 def main():
     """Main entry point"""
     logger.info("="*80)
