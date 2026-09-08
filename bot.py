@@ -1512,11 +1512,9 @@ async def handle_private_poll_answer(poll_id: str, user_id: int,
                 if session.get("is_last_question_in_section"):
                     session["is_last_question_in_section"] = False
                     await session_manager.update_session(chat_id, session)
-                    await asyncio.sleep(2)
                     await end_private_section(chat_id)
                 else:
 
-                    await asyncio.sleep(2)
                     context = session.get("context")
                     if context and current_idx + 1 < len(session.get("questions", [])):
                         await send_private_question(chat_id, context, current_idx + 1)
