@@ -814,27 +814,12 @@ def is_statement_question(text: str) -> bool:
     return bool(re.search(r'(?:I{1,3}|IV|VI{0,3}|IX)\.\s', text))
 
 
-
-# ── Additional "rich content" markers (Markdown tables, LaTeX/math blocks) ──
-# These cover cases needs_full_card didn't previously catch: a Match-the-
-# Following question formatted as a Markdown pipe table (instead of →
-# arrows), and math questions using $$...$$ / \( \) / \[ \] LaTeX delimiters.
-# Purely additive — does not alter any existing detection above.
-_MD_TABLE_RE = re.compile(r'^\|.+\|.*\n\|[-:\s|]+\|', re.MULTILINE)
-_LATEX_MATH_RE = re.compile(
-    r'\$\$[\s\S]+?\$\$'      # $$ ... $$ block math
-    r'|\\\([\s\S]+?\\\)'     # \( ... \) inline math
-    r'|\\\[[\s\S]+?\\\]'     # \[ ... \] block math
-)
-
-
 def needs_full_card(text: str) -> bool:
     """Return True if this question needs a full text card sent before the Telegram poll.
     Covers:
       - Statement questions   (I. / II. / III. sub-statements)
-      - Match-the-Following   (→ arrow items, Markdown pipe table, or [ Poll : [N/T] ] marker)
+      - Match-the-Following   (→ arrow items or [ Poll : [N/T] ] marker in text)
       - Assertion-Reason      (Assertion (A): / Reason (R): blocks — English or Hindi)
-      - Math / LaTeX          ($$...$$, \\( \\), \\[ \\] delimited expressions)
     """
     if not text:
         return False
@@ -851,12 +836,6 @@ def needs_full_card(text: str) -> bool:
     if re.search(r'कथन\s*\(A\)\s*:', text):
         return True
     if re.search(r'कारण\s*\(R\)\s*:', text):
-        return True
-    # Match-the-Following as a Markdown table
-    if _MD_TABLE_RE.search(text):
-        return True
-    # Math / LaTeX question bodies
-    if _LATEX_MATH_RE.search(text):
         return True
     return False
 

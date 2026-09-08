@@ -4002,28 +4002,10 @@ def _strip_promo_suffix(text: str) -> str:
     return text
 
 
-_CELL_LABEL_RE = re.compile(r'^[A-Za-z0-9][.)]\s+')
-
-
-def _strip_table_cell_label(cell: str) -> str:
-    """Strip a leading list-style label (e.g. 'A. ', 'B) ', '1. ') from a
-    single table cell. Matching-table questions (सूची-I / सूची-II style)
-    commonly label rows this way inside the source table; left in place,
-    a normalized row like 'A. चार्ल्स मैसन → 1. 1921' starts with a
-    pattern (`A.`) that is indistinguishable from a real A)/B)/C)/D)
-    answer-option line, which made `_parse_inline_question` mistake table
-    rows for the actual options. Stripping the label here removes the
-    collision at the source without touching the option-detection regex
-    or any other parsing logic. Falls back to the original cell text if
-    stripping would leave it empty."""
-    stripped = _CELL_LABEL_RE.sub('', cell, count=1).strip()
-    return stripped if stripped else cell
-
-
 def _normalize_table_row(line: str) -> str:
     """Convert a markdown table row into a plain 'left → right' line."""
     inner = line.strip().strip('|')
-    cells = [_strip_table_cell_label(c.strip()) for c in inner.split('|') if c.strip()]
+    cells = [c.strip() for c in inner.split('|') if c.strip()]
     if len(cells) >= 2:
         return f"{cells[0]} → {cells[1]}"
     return cells[0] if cells else line
