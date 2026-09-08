@@ -1820,6 +1820,7 @@ async def start_group_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE,
             "current_poll_id": None
         }
         
+        group_answer_events[chat_id] = asyncio.Event()
         await session_manager.create_session(chat_id, session_data)
         
 
