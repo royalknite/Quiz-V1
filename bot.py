@@ -60,6 +60,11 @@ try:
 except ImportError:
     generate_mock_test_pdf = None
 
+try:
+    from html_report import send_quiz_result_html
+except ImportError:
+    send_quiz_result_html = None
+
 
 async def send_quiz_result_pdf(quiz_data, chat_id, context, protect_content: bool = False,
                                leaderboard=None, shuffle: bool = False):
@@ -1640,6 +1645,14 @@ async def end_private_quiz(chat_id: int, context: ContextTypes.DEFAULT_TYPE):
         
 
         results_file = await save_quiz_results(quiz_data, chat_id, leaderboard)
+
+        if HTML_REPORTS_ENABLED and send_quiz_result_html and results_file:
+            try:
+                await send_quiz_result_html(
+                    results_file, quiz_data, chat_id, context, protect_content=False
+                )
+            except Exception as e:
+                logger.error(f"Error generating quiz HTML: {e}")
         
         start_link = f"https://t.me/Xd_Quiz_Bot?start={quiz_data['question_set_id']}"
         compare_callback = f"compare_{quiz_data['question_set_id']}_{chat_id}"
@@ -2273,6 +2286,14 @@ async def end_group_quiz(chat_id: int):
         
 
         results_file = await save_quiz_results(quiz_data, chat_id, leaderboard)
+
+        if HTML_REPORTS_ENABLED and send_quiz_result_html and results_file:
+            try:
+                await send_quiz_result_html(
+                    results_file, quiz_data, chat_id, context, protect_content=protect_type
+                )
+            except Exception as e:
+                logger.error(f"Error generating quiz HTML: {e}")
         
         start_link = f"https://t.me/Xd_Quiz_Bot?start={quiz_id}"
         compare_callback = f"compare_{quiz_id}_{chat_id}"
