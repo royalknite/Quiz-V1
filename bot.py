@@ -1658,8 +1658,7 @@ async def end_private_quiz(chat_id: int, context: ContextTypes.DEFAULT_TYPE):
         compare_callback = f"compare_{quiz_data['question_set_id']}_{chat_id}"
         
         buttons = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔄 Restart Quiz", url=start_link)],
-            [InlineKeyboardButton("📊 Compare Results", callback_data=compare_callback)]
+            [InlineKeyboardButton("🔄 Restart Quiz", url=start_link)]
         ])
         
         quiz_name = escape_markdown(quiz_data.get('quiz_name', 'Unnamed Quiz'))
@@ -2299,8 +2298,7 @@ async def end_group_quiz(chat_id: int):
         compare_callback = f"compare_{quiz_id}_{chat_id}"
         
         buttons = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔄 Restart Quiz", url=start_link)],
-            [InlineKeyboardButton("📊 Compare Results", callback_data=compare_callback)]
+            [InlineKeyboardButton("🔄 Restart Quiz", url=start_link)]
         ])
         
 
@@ -3353,7 +3351,6 @@ def main():
     application.add_handler(CommandHandler("pdf", toggle_pdf))
     application.add_handler(CommandHandler("html", toggle_html))
     application.add_handler(PollAnswerHandler(handle_poll_answer))
-    application.add_handler(CallbackQueryHandler(compare_results, pattern="^compare_"))
     
     logger.info("✓ Handlers registered")
     logger.info("✓ Starting polling...")
