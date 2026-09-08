@@ -1799,6 +1799,9 @@ async def start_group_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE,
             "current_poll_id": None
         }
         
+        # Create the event before the runner starts. PollAnswerHandler will set it
+        # when any participant answers the currently displayed group poll.
+        group_answer_events[chat_id] = asyncio.Event()
         await session_manager.create_session(chat_id, session_data)
         
 
