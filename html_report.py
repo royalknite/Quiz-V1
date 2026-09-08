@@ -1,11 +1,11 @@
-"""Standalone interactive HTML quiz generator.
+"""Interactive HTML quiz report generator.
 
-This module contains only the quiz HTML generator used when /html is enabled.
+Kept separate from the original c.py so the existing quiz functions remain untouched.
 """
 import os
+import re
 import json
 import random
-import re
 import uuid
 from unidecode import unidecode
 
@@ -21,7 +21,7 @@ async def generate_quiz_html(quiz, chat_id, context, ParseMode, type):
     # Quiz metadata
     qn = re.sub(r"[^a-zA-Z0-9_-]", "", unidecode(quiz["quiz_name"]).replace(" ", "_"))[:100] + ".html"
     mm = len(quiz["questions"])
-    nm = quiz.get("negative_marking", quiz.get("negative_marks", 0.25))
+    nm = quiz.get("negative_marks", 0.25)
     
     # ── Section support ──────────────────────────────────────────────
     sections = quiz.get("sections", [])
@@ -356,14 +356,14 @@ body{{font-family:'Poppins',-apple-system,BlinkMacSystemFont,sans-serif;backgrou
 .progress-bar-container{{height:6px;background:var(--border);border-radius:10px;overflow:hidden}}
 .progress-bar{{height:100%;background:linear-gradient(90deg,var(--primary) 0%,var(--secondary) 100%);transition:width .3s;border-radius:10px}}
 .section-badge{{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#fff;background:linear-gradient(135deg,#f093fb 0%,#f5576c 100%);padding:4px 12px;border-radius:20px;margin-bottom:10px}}
-.question-section{{position:fixed;top:140px;left:0;right:0;bottom:80px;overflow-y:auto;overflow-x:hidden;padding:20px;-webkit-overflow-scrolling:touch}}
+.question-section{{position:fixed;top:140px;left:0;right:0;bottom:92px;overflow-y:auto;overflow-x:hidden;padding:10px;-webkit-overflow-scrolling:touch}}
 .question-section.scrollable{{scrollbar-width:thin;scrollbar-color:var(--primary) transparent}}
-.question-card{{background:var(--bg-white);border-radius:20px;padding:24px;box-shadow:0 4px 20px rgba(0,0,0,.06);max-width:800px;margin:0 auto}}
+.question-card{{background:var(--bg-white);border-radius:14px;padding:14px;box-shadow:0 2px 10px rgba(0,0,0,.05);max-width:800px;margin:0 auto}}
 .question-number{{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--primary);background:linear-gradient(135deg,rgba(102,126,234,.15) 0%,rgba(118,75,162,.15) 100%);padding:6px 14px;border-radius:20px;margin-bottom:16px}}
 .question-reference{{background:linear-gradient(135deg,rgba(79,172,254,.15) 0%,rgba(0,242,254,.15) 100%);border-left:4px solid var(--info);padding:14px 16px;border-radius:10px;margin-bottom:16px;font-size:14px;color:var(--text-dark);line-height:1.7;white-space:pre-wrap!important;word-wrap:break-word!important;word-break:break-word!important;overflow-wrap:break-word!important}}
-.question-text{{font-size:16px;font-weight:600;color:var(--text-dark);line-height:1.7;margin-bottom:20px;white-space:pre-wrap!important;word-wrap:break-word!important;word-break:break-word!important;overflow-wrap:break-word!important}}
+.question-text{{font-size:15px;font-weight:600;color:var(--text-dark);line-height:1.5;margin-bottom:12px;white-space:pre-wrap!important;word-wrap:break-word!important;word-break:break-word!important;overflow-wrap:break-word!important}}
 .options-container{{display:grid;gap:12px}}
-.option-btn{{width:100%;padding:16px 18px;background:var(--bg-light);border:3px solid var(--border);border-radius:14px;text-align:left;font-size:15px;color:var(--text-dark);cursor:pointer;transition:all .3s;display:flex;align-items:flex-start;gap:12px;line-height:1.7;user-select:none}}
+.option-btn{{width:100%;padding:10px 12px;background:var(--bg-light);border:2px solid var(--border);border-radius:10px;text-align:left;font-size:14px;color:var(--text-dark);cursor:pointer;transition:all .2s;display:flex;align-items:flex-start;gap:9px;line-height:1.45;user-select:none}}
 .option-btn:active{{transform:scale(.98)}}
 .option-indicator{{min-width:28px;height:28px;border-radius:50%;background:var(--bg-white);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;transition:all .3s}}
 .option-text{{flex:1;padding-top:3px;white-space:pre-wrap!important;word-wrap:break-word!important;word-break:break-word!important;overflow-wrap:break-word!important;min-width:0}}
@@ -380,15 +380,15 @@ body{{font-family:'Poppins',-apple-system,BlinkMacSystemFont,sans-serif;backgrou
 .explanation-header{{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:#92400e;margin-bottom:10px}}
 .explanation-text{{font-size:14px;color:#78350f;line-height:1.7;white-space:pre-wrap!important;word-wrap:break-word!important;word-break:break-word!important;overflow-wrap:break-word!important}}
 [data-theme="dark"] .explanation-text{{color:#fbbf24}}
-.nav-controls{{position:fixed;bottom:0;left:0;right:0;background:var(--bg-white);padding:16px 20px;box-shadow:0 -2px 15px rgba(0,0,0,.08);display:flex;gap:12px;z-index:90}}
-.nav-btn{{flex:1;padding:14px;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;transition:all .3s;display:flex;align-items:center;justify-content:center;gap:8px}}
+.nav-controls{{position:fixed;bottom:0;left:0;right:0;background:var(--bg-white);padding:7px 10px;box-shadow:0 -2px 12px rgba(0,0,0,.08);display:grid;grid-template-columns:1fr 1fr;gap:7px;z-index:90}}
+.nav-btn{{width:100%;padding:9px 6px;border:none;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:5px;min-height:38px}}
 .nav-btn.primary{{background:linear-gradient(135deg,var(--primary) 0%,var(--secondary) 100%);color:#fff}}
 .nav-btn.secondary{{background:var(--bg-light);color:var(--text-dark);border:2px solid var(--border)}}
 .nav-btn:active{{transform:scale(.96)}}
 .nav-btn:disabled{{opacity:.5;cursor:not-allowed;transform:none}}
-.question-nav-toggle{{position:fixed;bottom:100px;right:20px;width:56px;height:56px;background:linear-gradient(135deg,var(--primary) 0%,var(--secondary) 100%);color:#fff;border:none;border-radius:50%;font-size:22px;cursor:pointer;box-shadow:0 8px 20px rgba(102,126,234,.4);z-index:85;transition:all .3s}}
+.question-nav-toggle{{position:fixed;bottom:104px;right:20px;width:56px;height:56px;background:linear-gradient(135deg,var(--primary) 0%,var(--secondary) 100%);color:#fff;border:none;border-radius:50%;font-size:22px;cursor:pointer;box-shadow:0 8px 20px rgba(102,126,234,.4);z-index:85;transition:all .3s}}
 .question-nav-toggle:active{{transform:scale(.95)}}
-.question-nav-panel{{position:fixed;bottom:0;left:0;right:0;background:var(--bg-white);border-radius:24px 24px 0 0;box-shadow:0 -4px 30px rgba(0,0,0,.15);z-index:95;max-height:70vh;overflow-y:auto;transform:translateY(100%);transition:transform .3s;padding:20px}}
+.question-nav-panel{{position:fixed;bottom:0;left:0;right:0;background:var(--bg-white);border-radius:18px 18px 0 0;box-shadow:0 -4px 24px rgba(0,0,0,.15);z-index:95;max-height:72vh;overflow-y:auto;transform:translateY(100%);transition:transform .25s;padding:12px}}
 .question-nav-panel.open{{transform:translateY(0)}}
 .nav-panel-header{{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid var(--border)}}
 .nav-panel-title{{font-size:18px;font-weight:700;color:var(--text-dark)}}
@@ -399,7 +399,7 @@ body{{font-family:'Poppins',-apple-system,BlinkMacSystemFont,sans-serif;backgrou
 .legend-box.answered{{background:linear-gradient(135deg,var(--primary) 0%,var(--secondary) 100%)}}
 .legend-box.marked{{background:linear-gradient(135deg,var(--warning) 0%,#f59e0b 100%)}}
 .legend-box.unanswered{{background:var(--border)}}
-.question-grid{{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}}
+.question-grid{{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}}
 .question-nav-item{{aspect-ratio:1;border:2px solid var(--border);border-radius:10px;background:var(--bg-white);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;cursor:pointer;transition:all .3s;color:var(--text-light)}}
 .question-nav-item:active{{transform:scale(.95)}}
 .question-nav-item.current{{border-color:var(--primary);background:linear-gradient(135deg,rgba(102,126,234,.15) 0%,rgba(118,75,162,.15) 100%);color:var(--primary)}}
@@ -489,9 +489,10 @@ body{{font-family:'Poppins',-apple-system,BlinkMacSystemFont,sans-serif;backgrou
 <div class="question-section scrollable" id="qs"></div>
 <div class="nav-controls">
 <button class="nav-btn secondary" id="pv"><i class="fas fa-chevron-left"></i>Previous</button>
-<button class="nav-btn secondary" id="mk"><i class="fas fa-bookmark"></i>Mark</button>
-<button class="nav-btn primary" id="nx">Next<i class="fas fa-chevron-right"></i></button>
-<button class="nav-btn primary" id="sm" style="display:none"><i class="fas fa-paper-plane"></i>Submit</button>
+<button class="nav-btn primary" id="mk"><i class="fas fa-bookmark"></i>Mark for Review</button>
+<button class="nav-btn secondary" id="cr"><i class="fas fa-eraser"></i>Clear Response</button>
+<button class="nav-btn primary" id="nx">Save &amp; Next <i class="fas fa-chevron-right"></i></button>
+<button class="nav-btn primary" id="sm" style="display:none"><i class="fas fa-paper-plane"></i>Submit Test</button>
 </div>
 <button class="question-nav-toggle" id="nt"><i class="fas fa-th"></i></button>
 <div class="question-nav-panel" id="np">
@@ -654,9 +655,10 @@ function so(oi){{
   if(st.a[st.cq]===oi){{st.a[st.cq]=null}}else{{st.a[st.cq]=oi}}
   rq(st.cq);
 }}
-function sn(){{document.getElementById('pv').addEventListener('click',np);document.getElementById('nx').addEventListener('click',nn);document.getElementById('mk').addEventListener('click',tm);document.getElementById('sm').addEventListener('click',cs);document.getElementById('nt').addEventListener('click',tnp);document.getElementById('nc').addEventListener('click',tnp);document.getElementById('rb').addEventListener('click',ra);document.getElementById('rsb').addEventListener('click',rs);document.getElementById('tt').addEventListener('click',tgt);document.addEventListener('keydown',e=>{{if(st.sb)return;if(e.key==='ArrowLeft')np();if(e.key==='ArrowRight')nn()}})}}
+function sn(){{document.getElementById('cr').addEventListener('click',clr);document.getElementById('pv').addEventListener('click',np);document.getElementById('nx').addEventListener('click',nn);document.getElementById('mk').addEventListener('click',tm);document.getElementById('sm').addEventListener('click',cs);document.getElementById('nt').addEventListener('click',tnp);document.getElementById('nc').addEventListener('click',tnp);document.getElementById('rb').addEventListener('click',ra);document.getElementById('rsb').addEventListener('click',rs);document.getElementById('tt').addEventListener('click',tgt);document.addEventListener('keydown',e=>{{if(st.sb)return;if(e.key==='ArrowLeft')np();if(e.key==='ArrowRight')nn()}})}}
 function np(){{if(st.cq>0)rq(st.cq-1)}}
 function nn(){{if(st.cq<qd.q.length-1)rq(st.cq+1)}}
+function clr(){{if(st.sb)return;st.a[st.cq]=null;rq(st.cq);uqg();}}
 function tm(){{st.mk[st.cq]=!st.mk[st.cq];uqg();const mb=document.getElementById('mk');mb.innerHTML=st.mk[st.cq]?'<i class="fas fa-bookmark"></i> Unmark':'<i class="fas fa-bookmark"></i> Mark'}}
 function unb(){{document.getElementById('pv').disabled=st.cq===0;if(st.cq===qd.q.length-1){{document.getElementById('nx').style.display='none';document.getElementById('sm').style.display='flex'}}else{{document.getElementById('nx').style.display='flex';document.getElementById('sm').style.display='none'}}const mb=document.getElementById('mk');mb.innerHTML=st.mk[st.cq]?'<i class="fas fa-bookmark"></i> Unmark':'<i class="fas fa-bookmark"></i> Mark'}}
 function up(){{const at=st.a.filter(a=>a!==null).length,pr=((st.cq+1)/qd.q.length)*100;document.getElementById('pt').textContent=`Question ${{st.cq+1}} of ${{qd.q.length}}`;document.getElementById('at').textContent=`Attempted: ${{at}}/${{qd.q.length}}`;document.getElementById('pb').style.width=pr+'%'}}

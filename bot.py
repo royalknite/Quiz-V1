@@ -50,7 +50,8 @@ from telegram.ext import Application, CommandHandler, PollAnswerHandler, Context
 from telegram.error import TelegramError, RetryAfter, TimedOut, NetworkError
 
 try:
-    from c import generate_quiz_html, generate_analysis_html
+    from html_report import generate_quiz_html
+    from c import generate_analysis_html
 except ImportError:
     generate_quiz_html = None
     generate_analysis_html = None
