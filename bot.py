@@ -50,7 +50,8 @@ from telegram.ext import Application, CommandHandler, PollAnswerHandler, Context
 from telegram.error import TelegramError, RetryAfter, TimedOut, NetworkError
 
 try:
-    from c import generate_quiz_html, generate_analysis_html
+    from html_report import generate_quiz_html
+    from c import generate_analysis_html
 except ImportError:
     generate_quiz_html = None
     generate_analysis_html = None
@@ -141,6 +142,10 @@ POLL_QUESTION_MAX_LENGTH = 300
 POLL_OPTION_MAX_LENGTH = 95
 POLL_EXPLANATION_MAX_LENGTH = 200
 TRIM_LENGTH = 80
+
+# Report toggles: PDF has priority when both are enabled.
+PDF_REPORTS_ENABLED = True
+HTML_REPORTS_ENABLED = False
 
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -1558,6 +1563,48 @@ async def end_private_section(chat_id: int):
     except Exception as e:
         logger.error(f"Error ending private section: {e}", exc_info=True)
 
+async def toggle_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Toggle automatic PDF report delivery (owner only)."""
+    global PDF_REPORTS_ENABLED
+    user = update.effective_user
+    if not user:
+        return
+    owner_ids = {x.strip() for x in os.getenv("OWNER_ID", "").split() if x.strip()}
+    if str(user.id) not in owner_ids:
+        await update.effective_message.reply_text("🚫 You are not authorized to use this command.")
+        return
+    PDF_REPORTS_ENABLED = not PDF_REPORTS_ENABLED
+    if PDF_REPORTS_ENABLED:
+        await update.effective_message.reply_text(
+            "✅ PDF Reports ENABLED.\nUse /pdf again to disable."
+        )
+    else:
+        await update.effective_message.reply_text(
+            "❌ PDF Reports DISABLED.\nUse /pdf again to enable."
+        )
+
+
+async def toggle_html(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Toggle automatic interactive HTML quiz-paper delivery (owner only)."""
+    global HTML_REPORTS_ENABLED
+    user = update.effective_user
+    if not user:
+        return
+    owner_ids = {x.strip() for x in os.getenv("OWNER_ID", "").split() if x.strip()}
+    if str(user.id) not in owner_ids:
+        await update.effective_message.reply_text("🚫 You are not authorized to use this command.")
+        return
+    HTML_REPORTS_ENABLED = not HTML_REPORTS_ENABLED
+    if HTML_REPORTS_ENABLED:
+        await update.effective_message.reply_text(
+            "✅ HTML Reports ENABLED.\nUse /html again to disable."
+        )
+    else:
+        await update.effective_message.reply_text(
+            "❌ HTML Reports DISABLED.\nUse /html again to enable."
+        )
+
+
 async def end_private_quiz(chat_id: int, context: ContextTypes.DEFAULT_TYPE):
     """End quiz in private chat and show results"""
     try:
@@ -1641,15 +1688,21 @@ async def end_private_quiz(chat_id: int, context: ContextTypes.DEFAULT_TYPE):
         )
         
 
-        try:
-            await send_quiz_result_pdf(
-                quiz_data, chat_id, context,
-                protect_content=False,
-                leaderboard=leaderboard,
-                shuffle=False,
-            )
-        except Exception as e:
-            logger.error(f"Error generating quiz PDF: {e}")
+        if PDF_REPORTS_ENABLED:
+            try:
+                await send_quiz_result_pdf(
+                    quiz_data, chat_id, context,
+                    protect_content=False,
+                    leaderboard=leaderboard,
+                    shuffle=False,
+                )
+            except Exception as e:
+                logger.error(f"Error generating quiz PDF: {e}")
+        elif HTML_REPORTS_ENABLED and generate_quiz_html:
+            try:
+                await generate_quiz_html(quiz_data, chat_id, context, ParseMode, False)
+            except Exception as e:
+                logger.error(f"Error generating quiz HTML: {e}", exc_info=True)
     
     except Exception as e:
         logger.error(f"Error ending private quiz: {e}", exc_info=True)
@@ -2223,15 +2276,21 @@ async def end_group_quiz(chat_id: int):
                 "ℹ️ Kisi ne bhi answer nahi diya — yahaan question paper PDF bhej raha hoon:",
                 parse_mode=ParseMode.MARKDOWN
             )
-            try:
-                await send_quiz_result_pdf(
-                    quiz_data, chat_id, context,
-                    protect_content=False,
-                    leaderboard=[],
-                    shuffle=False,
-                )
-            except Exception as e:
-                logger.error(f"Error generating quiz PDF (no-answers branch): {e}")
+            if PDF_REPORTS_ENABLED:
+                try:
+                    await send_quiz_result_pdf(
+                        quiz_data, chat_id, context,
+                        protect_content=False,
+                        leaderboard=[],
+                        shuffle=False,
+                    )
+                except Exception as e:
+                    logger.error(f"Error generating quiz PDF (no-answers branch): {e}")
+            elif HTML_REPORTS_ENABLED and generate_quiz_html:
+                try:
+                    await generate_quiz_html(quiz_data, chat_id, context, ParseMode, False)
+                except Exception as e:
+                    logger.error(f"Error generating quiz HTML (no-answers branch): {e}", exc_info=True)
             await session_manager.delete_session(chat_id)
             return
         
@@ -2284,24 +2343,30 @@ async def end_group_quiz(chat_id: int):
                 )
         
 
-        try:
-            ok = await send_quiz_result_pdf(
-                quiz_data, chat_id, context,
-                protect_content=protect_type,
-                leaderboard=leaderboard,
-                shuffle=False,
-            )
-            if not ok:
+        if PDF_REPORTS_ENABLED:
+            try:
+                ok = await send_quiz_result_pdf(
+                    quiz_data, chat_id, context,
+                    protect_content=protect_type,
+                    leaderboard=leaderboard,
+                    shuffle=False,
+                )
+                if not ok:
+                    await safe_send_message(
+                        context, chat_id,
+                        "⚠️ Could not generate quiz PDF due to an error."
+                    )
+            except Exception as e:
+                logger.error(f"Error generating quiz PDF: {e}")
                 await safe_send_message(
                     context, chat_id,
                     "⚠️ Could not generate quiz PDF due to an error."
                 )
-        except Exception as e:
-            logger.error(f"Error generating quiz PDF: {e}")
-            await safe_send_message(
-                context, chat_id,
-                "⚠️ Could not generate quiz PDF due to an error."
-            )
+        elif HTML_REPORTS_ENABLED and generate_quiz_html:
+            try:
+                await generate_quiz_html(quiz_data, chat_id, context, ParseMode, False)
+            except Exception as e:
+                logger.error(f"Error generating quiz HTML: {e}", exc_info=True)
         
 
         await session_manager.delete_session(chat_id)
@@ -3279,6 +3344,8 @@ def main():
     )
     
 
+    application.add_handler(CommandHandler("pdf", toggle_pdf))
+    application.add_handler(CommandHandler("html", toggle_html))
     application.add_handler(CommandHandler("start", start_quiz))
     application.add_handler(CommandHandler("sdl", schedule_quiz))
     application.add_handler(CommandHandler("schedule", schedule_quiz))
