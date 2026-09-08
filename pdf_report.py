@@ -169,7 +169,6 @@ def _write_page1(pdf: QuizReportPDF,
         return
 
     # Table header
-    col_widths = [12, 70, 18, 14, 18, 26, 22]  # Rank Name Score Wrong Acc% Time (Extra removed)
     headers    = ["Rank", "Participant", "Score", "Wrong", "Acc%", "Time"]
     col_widths = [12, 76, 20, 18, 20, 28]       # adjust to fit 190 mm
 
@@ -269,7 +268,7 @@ def _q_card_height(pdf: QuizReportPDF, q: Dict, card_w: float) -> float:
 
     if exp:
         h += 2.5
-        h += 7.5 + _text_height(pdf, exp, inner_w - 14, 4.3) + 4.5
+        h += 7.5 + _text_height(pdf, exp, inner_w - 12, 4.3) + 4.5
 
     h += 4.5
     return h
@@ -293,17 +292,17 @@ def _render_question_card(pdf: QuizReportPDF,
 
     # Main card: smooth rounded rectangle with subtle border.
     pdf.set_fill_color(255, 255, 255)
-    pdf.set_draw_color(205, 210, 218)
-    pdf.set_line_width(0.45)
+    pdf.set_draw_color(215, 220, 228)
+    pdf.set_line_width(0.4)
     try:
         pdf.rounded_rect(x, y, card_w, card_h, 3.0, style="DF")
     except Exception:
         pdf.rect(x, y, card_w, card_h, style="DF")
 
-    # Blue accent is part of the card edge.
+    # Blue patti (accent) on the left edge.
     pdf.set_draw_color(30, 86, 190)
-    pdf.set_line_width(1.25)
-    pdf.line(x + 1.0, y + 3.0, x + 1.0, y + card_h - 3.0)
+    pdf.set_line_width(1.5)
+    pdf.line(x + 0.75, y + 1.5, x + 0.75, y + card_h - 1.5)
     pdf.set_line_width(0.2)
 
     # Rounded Q badge.
@@ -338,7 +337,7 @@ def _render_question_card(pdf: QuizReportPDF,
         oh = max(5.8, _text_height(pdf, opt or "", ow - 14, 5.1))
 
         if is_correct:
-            pdf.set_fill_color(239, 252, 244)
+            pdf.set_fill_color(235, 250, 240)
             pdf.set_text_color(21, 154, 85)
             try:
                 pdf.rounded_rect(ox, cy, ow, oh, 1.6, style="F")
@@ -361,7 +360,6 @@ def _render_question_card(pdf: QuizReportPDF,
         cy += oh + 0.8
 
     # Explanation is a single rounded box INSIDE the same question card.
-    # No separate yellow strip is created outside it.
     if exp:
         cy += 1.5
 
@@ -373,18 +371,24 @@ def _render_question_card(pdf: QuizReportPDF,
         exp_body_h = _text_height(pdf, exp, text_w, 4.3)
         exp_h = 7.5 + exp_body_h + 4.5
 
-        pdf.set_fill_color(255, 249, 204)
-        pdf.set_draw_color(245, 196, 35)
-        pdf.set_line_width(0.7)
+        # Background and subtle border for Explanation
+        pdf.set_fill_color(253, 250, 230)
+        pdf.set_draw_color(235, 215, 140)
+        pdf.set_line_width(0.4)
         try:
             pdf.rounded_rect(ex, cy, ew, exp_h, 2.2, style="DF")
         except Exception:
             pdf.rect(ex, cy, ew, exp_h, style="DF")
+            
+        # Yellow patti (accent) on the left edge of Explanation
+        pdf.set_draw_color(218, 165, 32)
+        pdf.set_line_width(1.5)
+        pdf.line(ex + 0.75, cy + 1.5, ex + 0.75, cy + exp_h - 1.5)
         pdf.set_line_width(0.2)
 
         pdf.set_xy(text_x, cy + 2.0)
         pdf.set_font("Noto", "B", 8.8)
-        pdf.set_text_color(112, 70, 20)
+        pdf.set_text_color(180, 110, 20)
         pdf.cell(text_w, 4.5, "Explanation:")
 
         label_bottom = pdf.get_y() + 4.5
@@ -544,3 +548,4 @@ def generate_mock_test_pdf(
     os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else ".", exist_ok=True)
     pdf.output(output_path)
     return output_path
+      
