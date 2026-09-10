@@ -1631,6 +1631,59 @@ async def toggle_html(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+async def generate_html_on_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Generate and send an HTML file for a quiz using /ghtml <quiz_id>."""
+    try:
+        chat_id = update.effective_chat.id
+
+        if not context.args:
+            await update.effective_message.reply_text(
+                "❌ Usage: /ghtml <quiz_id>\n\n"
+                "Example: /ghtml GGNKE5QNH"
+            )
+            return
+
+        quiz_id = context.args[0].strip()
+
+        quiz_data = await db_manager.find_one(
+            "questions",
+            {"question_set_id": quiz_id}
+        )
+
+        if not quiz_data:
+            await update.effective_message.reply_text(
+                "❌ Invalid QuestionSetID."
+            )
+            return
+
+        if not generate_quiz_html:
+            await update.effective_message.reply_text(
+                "❌ HTML generator is not available."
+            )
+            return
+
+        await update.effective_message.reply_text(
+            "⏳ Generating HTML file..."
+        )
+
+        await generate_quiz_html(
+            quiz_data,
+            chat_id,
+            context,
+            ParseMode,
+            False
+        )
+
+    except Exception as e:
+        logger.error(
+            f"Error generating HTML from /ghtml: {e}",
+            exc_info=True
+        )
+        await update.effective_message.reply_text(
+            "❌ Failed to generate HTML file."
+        )
+
+
 async def end_private_quiz(chat_id: int, context: ContextTypes.DEFAULT_TYPE):
     """End quiz in private chat and show results"""
     try:
@@ -3413,6 +3466,7 @@ def main():
 
     application.add_handler(CommandHandler("pdf", toggle_pdf))
     application.add_handler(CommandHandler("html", toggle_html))
+    application.add_handler(CommandHandler("ghtml", generate_html_on_command))
     application.add_handler(CommandHandler("start", start_quiz))
     application.add_handler(CommandHandler("sdl", schedule_quiz))
     application.add_handler(CommandHandler("schedule", schedule_quiz))
