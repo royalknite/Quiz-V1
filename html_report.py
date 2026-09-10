@@ -826,6 +826,6 @@ function renderResultReview(){{
     with open(fn, "w", encoding="utf-8") as f:
         f.write(html)
     with open(fn, "rb") as f:
-        await context.bot.send_document(chat_id=chat_id, document=f, caption=f"{quiz['quiz_name']}\n\nPremium Quiz Bot", protect_content=type)
+        await context.bot.send_document(chat_id=chat_id, document=f, caption=f"{quiz['quiz_name']}\n\nAlpha Quiz Bot", protect_content=type)
     import os
     os.remove(fn)
