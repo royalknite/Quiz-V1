@@ -1121,9 +1121,9 @@ async def create_quiz(client, message: Message):
             data["warned"] = True
         return  # Ignore silently
 
-    if data["last_used"] and now - data["last_used"] < timedelta(seconds=30):
+    if data["last_used"] and now - data["last_used"] < timedelta(seconds=10):
         if not data["warned"]:  # Warn once until cooldown ends
-            await message.reply("⚠️ Please wait **30 seconds** before using /create again.")
+            await message.reply("⚠️ Please wait **10 seconds** before using /create again.")
             data["warned"] = True
         return  # Ignore silently
 
