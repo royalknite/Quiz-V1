@@ -225,7 +225,7 @@ async def subscribe(app, message):
 
     if LOG_GROUP:
         try:
-          user = await app.get_chat_member(LOG_GROUP, message.from_user.id)
+          user = await app.get_chat_member("@QuizBotHelp", message.from_user.id)
           if str(user.status) == "ChatMemberStatus.BANNED":
               await message.reply_text("You are Banned. Contact -- Alpha World")
               return 1
