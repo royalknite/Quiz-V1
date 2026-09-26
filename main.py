@@ -85,7 +85,7 @@ filter_collection  = dbx.user_filters  # kept for compatibility
 BOT_API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 # ── Constants ─────────────────────────────────────────────────────────────────
-chatn     = "AIpha_World"
+chatn     = "QuizBotHelp"
 PAGE_SIZE = 10
 
 # ── State ─────────────────────────────────────────────────────────────────────
@@ -231,7 +231,7 @@ async def subscribe(app, message):
               return 1
         except UserNotParticipant:
             caption = f"Join our channel to use the bot"
-            await message.reply_photo(photo="https://graph.org/file/d44f024a08ded19452152.jpg",caption=caption, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Join Now...", url=f"https://t.me/AIpha_World")]]))
+            await message.reply_photo(photo="https://graph.org/file/d44f024a08ded19452152.jpg",caption=caption, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Join Now...", url=f"https://t.me/QuizBotHelp")]]))
             return 1
         except Exception:
             await message.reply_text("Channel membership verify nahi ho pa rahi. Please join our channel and try again.")
@@ -1502,8 +1502,8 @@ async def aihelp_command(client, message: Message):
 # ─── /testseries — export quiz as Mock-Test PDF ─────────────────────────────
 from pdf_report import generate_mock_test_pdf
 
-CHANNEL_HANDLE = "@AIpha_World"
-CHANNEL_LINK = "https://t.me/AIpha_World"
+CHANNEL_HANDLE = "@QuizBotHelp"
+CHANNEL_LINK = "https://t.me/QuizBotHelp"
 
 def _resolve_quiz_for_export(quiz_id: str):
     """Look up a quiz by id in either questions collection."""
