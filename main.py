@@ -85,7 +85,7 @@ filter_collection  = dbx.user_filters  # kept for compatibility
 BOT_API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 # ── Constants ─────────────────────────────────────────────────────────────────
-chatn     = "QuizBotHelp"
+chatn     = "AIpha_World"
 PAGE_SIZE = 10
 
 # ── State ─────────────────────────────────────────────────────────────────────
@@ -219,6 +219,10 @@ async def delete_all_quizzes(client, message: Message):
     await message.reply(f"✅ Deleted {result.deleted_count} quiz records from the database.")
 
 async def subscribe(app, message):
+    # Owner ko channel join check se bypass karein
+    if message.from_user and message.from_user.id in OWNER_ID:
+        return
+
     if LOG_GROUP:
         try:
           user = await app.get_chat_member(LOG_GROUP, message.from_user.id)
@@ -227,11 +231,12 @@ async def subscribe(app, message):
               return 1
         except UserNotParticipant:
             caption = f"Join our channel to use the bot"
-            await message.reply_photo(photo="https://graph.org/file/d44f024a08ded19452152.jpg",caption=caption, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Join Now...", url=f"https://t.me/QuizBotHelp")]]))
+            await message.reply_photo(photo="https://graph.org/file/d44f024a08ded19452152.jpg",caption=caption, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Join Now...", url=f"https://t.me/AIpha_World")]]))
             return 1
         except Exception:
-            await message.reply_text("Something Went Wrong. Contact us Alpha World...")
+            await message.reply_text("Channel membership verify nahi ho pa rahi. Please join our channel and try again.")
             return 1
+
 
 async def send_document_http(chat_id: int, file_id: str, caption: str):
     payload = {
@@ -1497,8 +1502,8 @@ async def aihelp_command(client, message: Message):
 # ─── /testseries — export quiz as Mock-Test PDF ─────────────────────────────
 from pdf_report import generate_mock_test_pdf
 
-CHANNEL_HANDLE = "@QuizBotHelp"
-CHANNEL_LINK = "https://t.me/QuizBotHelp"
+CHANNEL_HANDLE = "@AIpha_World"
+CHANNEL_LINK = "https://t.me/AIpha_World"
 
 def _resolve_quiz_for_export(quiz_id: str):
     """Look up a quiz by id in either questions collection."""
