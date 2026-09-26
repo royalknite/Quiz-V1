@@ -85,7 +85,7 @@ async def send_quiz_result_pdf(quiz_data, chat_id, context, protect_content: boo
     try:
         await asyncio.to_thread(
             generate_mock_test_pdf, quiz_data, out_path,
-            "@AIpha_World", leaderboard or [], shuffle
+            "@QuizBotHelp", leaderboard or [], shuffle
         )
     except Exception as e:
         logger.error(f"PDF generation failed for chat {chat_id}: {e}", exc_info=True)
@@ -1830,7 +1830,7 @@ async def start_group_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE,
                         f"👤 Name: {escape_markdown(creator_info.first_name or '')}\n"
                         f"💬 Username: @{escape_markdown(creator_info.username if creator_info.username else 'N/A')}\n"
                         f"📢 User ID: `{creator_info.id}`\n\n"
-                        f"*_Protected by [Team SPY](https://t.me/AIpha_World)_*"
+                        f"*_Protected by [Team SPY](https://t.me/QuizBotHelp)_*"
                     )
                     await safe_send_message(
                         context, chat_id,
@@ -2699,7 +2699,7 @@ async def start_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"👤 Name: {escape_markdown(creator_info.first_name or '')}\n"
                     f"💬 Username: @{escape_markdown(creator_info.username if creator_info.username else 'N/A')}\n"
                     f"📢 User ID: `{creator_info.id}`\n\n"
-                    f"*_Protected by [Team SPY](https://t.me/AIpha_World)_*"
+                    f"*_Protected by [Team SPY](https://t.me/QuizBotHelp)_*"
                 )
                 await safe_send_message(
                     context, chat_id,
