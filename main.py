@@ -245,7 +245,7 @@ async def subscribe(app, message):
     except UserNotParticipant:
         caption = "Join our channel to use the bot"
         await message.reply_photo(
-            photo="https://graph.org/file/d44f024a08ded19452152.jpg",
+            photo="https://files.catbox.moe/9gkzq7.png",
             caption=caption,
             reply_markup=InlineKeyboardMarkup([[
                 InlineKeyboardButton("Join Now...", url="https://t.me/QuizBotHelp")
