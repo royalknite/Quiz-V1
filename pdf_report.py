@@ -490,7 +490,7 @@ def _write_qa_pages(pdf: QuizReportPDF, questions: List[Dict]) -> None:
 def generate_mock_test_pdf(
     quiz: Dict,
     output_path: str,
-    channel: str = "@AIpha_World",
+    channel: str = "@QuizBotHelp",
     leaderboard: Optional[List[Dict]] = None,
     shuffle: bool = False,
 ) -> str:
