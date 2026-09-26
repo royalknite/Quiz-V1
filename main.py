@@ -234,7 +234,8 @@ async def subscribe(app, message):
             await message.reply_photo(photo="https://graph.org/file/d44f024a08ded19452152.jpg",caption=caption, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Join Now...", url=f"https://t.me/QuizBotHelp")]]))
             return 1
         except Exception:
-            await message.reply_text("Channel membership verify nahi ho pa rahi. Please join our channel and try again.")
+            await message.reply_text("Unable to verify channel membership. Please join the channel and try again.\n\n"
+    "Join - @QuizBotHelp")
             return 1
 
 
