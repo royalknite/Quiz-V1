@@ -223,20 +223,47 @@ async def subscribe(app, message):
     if message.from_user and message.from_user.id in OWNER_ID:
         return
 
-    if LOG_GROUP:
-        try:
-          user = await app.get_chat_member("@QuizBotHelp", message.from_user.id)
-          if str(user.status) == "ChatMemberStatus.BANNED":
-              await message.reply_text("You are Banned. Contact -- Alpha World")
-              return 1
-        except UserNotParticipant:
-            caption = f"Join our channel to use the bot"
-            await message.reply_photo(photo="https://graph.org/file/d44f024a08ded19452152.jpg",caption=caption, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Join Now...", url=f"https://t.me/QuizBotHelp")]]))
+    # Force-subscription check: always verify the actual required channel.
+    channel = "@QuizBotHelp"
+    try:
+        user = await app.get_chat_member(channel, message.from_user.id)
+        status = str(user.status).lower()
+
+        # Banned users remain blocked.
+        if status.endswith(".banned") or status == "banned":
+            await message.reply_text("You are Banned. Contact -- Alpha World")
             return 1
-        except Exception:
-            await message.reply_text("Unable to verify channel membership. Please join the channel and try again.\n\n"
-    "Join - @QuizBotHelp")
-            return 1
+
+        # These statuses mean the user is allowed to use the bot.
+        if status.endswith(".member") or status.endswith(".administrator") or status.endswith(".owner") \
+                or status in {"member", "administrator", "owner"}:
+            return
+
+        # Any other status is treated as not joined.
+        raise UserNotParticipant
+
+    except UserNotParticipant:
+        caption = "Join our channel to use the bot"
+        await message.reply_photo(
+            photo="https://graph.org/file/d44f024a08ded19452152.jpg",
+            caption=caption,
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("Join Now...", url="https://t.me/QuizBotHelp")
+            ]])
+        )
+        return 1
+    except ChatAdminRequired:
+        # This means the bot cannot read channel membership.
+        await message.reply_text(
+            "Channel membership could not be verified. Please make the bot an admin in @QuizBotHelp and try again."
+        )
+        return 1
+    except Exception:
+        await message.reply_text(
+            "Unable to verify channel membership. Please join @QuizBotHelp and try again.\n\n"
+            "Join - @QuizBotHelp"
+        )
+        return 1
 
 
 async def send_document_http(chat_id: int, file_id: str, caption: str):
