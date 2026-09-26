@@ -2650,7 +2650,7 @@ async def start_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             join_channel_button = InlineKeyboardMarkup([
 
-                [InlineKeyboardButton("📢 Join Our Channel", url="https://t.me/AIpha_World")]
+                [InlineKeyboardButton("📢 Join Our Channel", url="https://t.me/QuizBotHelp")]
             ])
             await safe_send_message(
                 context, chat_id,
