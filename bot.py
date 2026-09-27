@@ -1736,7 +1736,7 @@ async def end_private_quiz(chat_id: int, context: ContextTypes.DEFAULT_TYPE):
 
         results_file = await save_quiz_results(quiz_data, chat_id, leaderboard)
         
-        start_link = f"https://t.me/QuizBotHelp?start={quiz_data['question_set_id']}"
+        start_link = f"https://t.me/Quick_QxBot?start={quiz_data['question_set_id']}"
         compare_callback = f"compare_{quiz_data['question_set_id']}_{chat_id}"
         
         buttons = InlineKeyboardMarkup([
@@ -2412,7 +2412,7 @@ async def end_group_quiz(chat_id: int):
 
         results_file = await save_quiz_results(quiz_data, chat_id, leaderboard)
         
-        start_link = f"https://t.me/QuizBotHelp?start={quiz_id}"
+        start_link = f"https://t.me/Quick_QxBot?start={quiz_id}"
         compare_callback = f"compare_{quiz_id}_{chat_id}"
         
         buttons = InlineKeyboardMarkup([
