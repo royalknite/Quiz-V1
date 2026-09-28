@@ -2781,7 +2781,7 @@ async def schedule_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         try:
             chat_member = await context.bot.get_chat_member(chat_id, user_id)
-            if chat_member.status not in ["administrator", "creator"]:
+            if user_id not in OWNER_ID and chat_member.status not in ["administrator", "creator"]:
                 await safe_send_message(
                     context, chat_id,
                     "🚫 You must be an admin to schedule a quiz."
