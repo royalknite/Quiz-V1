@@ -127,6 +127,8 @@ BOT_TOKEN  = os.getenv("BOT_TOKEN", "")   # PTB scheduler bot token (shared with
 MONGO_URI_1 = os.getenv("MONGO_URI", "")
 MONGO_URI_2 = os.getenv("MONGO_URI_2", "")
 
+OWNER_ID = list(map(int, os.getenv("OWNER_ID", "0").split()))
+
 MAX_CONCURRENT_POLLS = 5000  # Max polls per chat simultaneously
 POLL_SEND_DELAY = 0.1  # Delay between polls (anti-flood)
 DB_BATCH_SIZE = 100  # Batch size for DB operations
