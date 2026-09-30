@@ -1990,7 +1990,12 @@ async def run_group_quiz_no_sections(chat_id: int, start_index: int):
         
         # Wait for an actual participant answer; if nobody answers, keep the
         # original timer behaviour as the fallback.
-        
+        if answer_event:
+            try:
+                await asyncio.wait_for(answer_event.wait(), timeout=timer + 3)
+            except asyncio.TimeoutError:
+                pass
+        else:
             try:
                 await asyncio.sleep(timer + 3)
             except asyncio.CancelledError:
@@ -2059,7 +2064,12 @@ async def run_group_quiz_with_sections(chat_id: int, start_index: int):
                 timer = 10
             
             # Advance immediately after an answer; otherwise retain the timer.
-            
+            if answer_event:
+                try:
+                    await asyncio.wait_for(answer_event.wait(), timeout=timer + 3)
+                except asyncio.TimeoutError:
+                    pass
+            else:
                 try:
                     await asyncio.sleep(timer + 3)
                 except asyncio.CancelledError:
