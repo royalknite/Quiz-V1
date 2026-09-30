@@ -3358,11 +3358,7 @@ async def handle_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 
                 # Only the currently displayed poll can advance the quiz.
                 # This wakes the runner immediately instead of waiting for the timer.
-                if poll_id == session.get("current_poll_id"):
-                    answer_event = group_answer_events.get(chat_id)
-                    if answer_event:
-                        logger.info(f"GROUP POLL ANSWER RECEIVED: chat={chat_id}, poll={poll_id}, user={user_id} -> advancing immediately")
-                        answer_event.set()
+                
                 
                 await session_manager.update_session(chat_id, session)
                 break
