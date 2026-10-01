@@ -2376,6 +2376,7 @@ async def end_group_quiz(chat_id: int):
             leaderboard.append({
                 "user_id": user_id,
                 "name": user_data["name"],
+                "username": user_data.get("username"),
                 "correct": correct,
                 "wrong": wrong,
                 "score": score,
@@ -2440,7 +2441,11 @@ async def end_group_quiz(chat_id: int):
                     score_str = f"{score:.2f}"
                 
                 rank_icon = "🥇" if index == 1 else "🥈" if index == 2 else "🥉" if index == 3 else f"  {index}."
-                leaderboard_text += f"{rank_icon} {user['name']} – {score_str} ({time_str})\n"
+                if user.get("username"):
+                    display_name = f"@{str(user['username']).lstrip('@')}"
+                else:
+                    display_name = user.get("name") or "Unknown User"
+                leaderboard_text += f"{rank_icon} {display_name} – {score_str} ({time_str})\n"
             
             if i == 0:
                 await safe_send_message(
@@ -3321,7 +3326,14 @@ async def handle_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE)
         poll_answer = update.poll_answer
         poll_id = poll_answer.poll_id
         user_id = poll_answer.user.id
-        user_name = poll_answer.user.first_name
+        user_username = getattr(poll_answer.user, "username", None)
+        user_full_name = " ".join(
+            part for part in [
+                getattr(poll_answer.user, "first_name", None),
+                getattr(poll_answer.user, "last_name", None),
+            ]
+            if part
+        ).strip() or "Unknown User"
         
         if not poll_answer.option_ids:
             return
@@ -3346,7 +3358,8 @@ async def handle_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE)
             if poll_id in session.get("polls", {}):
                 if user_id not in session["participants"]:
                     session["participants"][user_id] = {
-                        "name": user_name,
+                        "name": user_full_name,
+                        "username": user_username,
                         "answers": {}
                     }
                 
