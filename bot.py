@@ -39,6 +39,9 @@ from typing import Dict, Any, Optional, List, Set
 from collections import deque, defaultdict
 from contextlib import asynccontextmanager
 import logging
+
+# Set to True to show Restart Quiz / Compare Results buttons.
+SHOW_RESTART_COMPARE = False
 from logging.handlers import RotatingFileHandler
 import pymongo
 from pymongo import MongoClient
@@ -1738,13 +1741,14 @@ async def end_private_quiz(chat_id: int, context: ContextTypes.DEFAULT_TYPE):
 
         results_file = await save_quiz_results(quiz_data, chat_id, leaderboard)
         
-        start_link = f"https://t.me/Quick_QxBot?start={quiz_data['question_set_id']}"
-        compare_callback = f"compare_{quiz_data['question_set_id']}_{chat_id}"
-        
-        buttons = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔄 Restart Quiz", url=start_link)],
-            [InlineKeyboardButton("📊 Compare Results", callback_data=compare_callback)]
-        ])
+        buttons = None
+        if SHOW_RESTART_COMPARE:
+            start_link = f"https://t.me/Quick_QxBot?start={quiz_data['question_set_id']}"
+            compare_callback = f"compare_{quiz_data['question_set_id']}_{chat_id}"
+            buttons = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔄 Restart Quiz", url=start_link)],
+                [InlineKeyboardButton("📊 Compare Results", callback_data=compare_callback)]
+            ])
         
         quiz_name = escape_markdown(quiz_data.get('quiz_name', 'Unnamed Quiz'))
         
@@ -2415,13 +2419,14 @@ async def end_group_quiz(chat_id: int):
 
         results_file = await save_quiz_results(quiz_data, chat_id, leaderboard)
         
-        start_link = f"https://t.me/Quick_QzBot?start={quiz_id}"
-        compare_callback = f"compare_{quiz_id}_{chat_id}"
-        
-        buttons = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔄 Restart Quiz", url=start_link)],
-            [InlineKeyboardButton("📊 Compare Results", callback_data=compare_callback)]
-        ])
+        buttons = None
+        if SHOW_RESTART_COMPARE:
+            start_link = f"https://t.me/Quick_QzBot?start={quiz_id}"
+            compare_callback = f"compare_{quiz_id}_{chat_id}"
+            buttons = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔄 Restart Quiz", url=start_link)],
+                [InlineKeyboardButton("📊 Compare Results", callback_data=compare_callback)]
+            ])
         
 
         # Send the final leaderboard in the requested simple format.
