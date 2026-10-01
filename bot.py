@@ -2414,7 +2414,7 @@ async def end_group_quiz(chat_id: int):
 
         results_file = await save_quiz_results(quiz_data, chat_id, leaderboard)
         
-        start_link = f"https://t.me/Quick_QxBot?start={quiz_id}"
+        start_link = f"https://t.me/Quick_QzBot?start={quiz_id}"
         compare_callback = f"compare_{quiz_id}_{chat_id}"
         
         buttons = InlineKeyboardMarkup([
