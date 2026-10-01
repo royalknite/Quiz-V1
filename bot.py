@@ -2409,52 +2409,46 @@ async def end_group_quiz(chat_id: int):
             return
         
 
+        # Final leaderboard: highest calculated score first, then fastest time.
+        # Negative marking is already included in user["score"] above.
         leaderboard.sort(key=lambda x: (x["score"], -x["total_time"]), reverse=True)
-        
 
         results_file = await save_quiz_results(quiz_data, chat_id, leaderboard)
-        
-        start_link = f"https://t.me/Quick_QzBot?start={quiz_id}"
+
+        start_link = f"https://t.me/Quick_QxBot?start={quiz_id}"
         compare_callback = f"compare_{quiz_id}_{chat_id}"
-        
+
         buttons = InlineKeyboardMarkup([
             [InlineKeyboardButton("🔄 Restart Quiz", url=start_link)],
             [InlineKeyboardButton("📊 Compare Results", callback_data=compare_callback)]
         ])
-        
 
-        for i in range(0, len(leaderboard), 15):
-            chunk = leaderboard[i:i+15]
-            leaderboard_text = ""
-            
-            for index, user in enumerate(chunk, start=i+1):
-                total_attempts = user["correct"] + user["wrong"]
-                percentage = (user["correct"] / total_questions) * 100 if total_questions else 0
-                accuracy = (user["correct"] / total_attempts) * 100 if total_attempts else 0
-                
-                minutes, seconds = divmod(user["total_time"], 60)
-                time_str = f"{int(minutes)}m {int(seconds)}s"
-                
-                rank_icon = "🥇" if index == 1 else "🥈" if index == 2 else "🥉" if index == 3 else f"{index}."
-                
-                leaderboard_text += (
-                    f"{rank_icon} {user['name']} | ✅ {user['correct']} | ❌ {user['wrong']} | 🎯 {user['score']:.2f} | "
-                    f"⏱️ {time_str} | 📊 {percentage:.2f}% | 🚀 {accuracy:.2f}%\n"
-                    f"────────────────\n"
-                )
-            
-            if i == 0:
-                await safe_send_message(
-                    context, chat_id,
-                    f"""🏆 Quiz '{quiz_name}' has ended!\n\n🎯 Top Performers:\n\n{leaderboard_text}""",
-                    reply_markup=buttons
-                )
-            else:
-                await asyncio.sleep(4)
-                await safe_send_message(
-                    context, chat_id,
-                    f"""🏆 Quiz '{quiz_name}' has ended!\n\n🎯 Top Performers:\n\n{leaderboard_text}"""
-                )
+        # Keep the Telegram final leaderboard compact and normal: show top 20 only.
+        display_leaderboard = leaderboard
+        leaderboard_text = ""
+
+        for index, user in enumerate(display_leaderboard, start=1):
+            minutes, seconds = divmod(int(user["total_time"]), 60)
+            time_str = f"{minutes} min {seconds} sec"
+
+            rank_icon = (
+                "🥇" if index == 1
+                else "🥈" if index == 2
+                else "🥉" if index == 3
+                else f"  {index}."
+            )
+
+            # Show whole numbers as whole numbers; keep real fractional negative-marking scores.
+            score = user["score"]
+            score_str = str(int(score)) if float(score).is_integer() else f"{score:.2f}"
+
+            leaderboard_text += f"{rank_icon} {user['name']} – {score_str} ({time_str})\n"
+
+        await safe_send_message(
+            context, chat_id,
+            f"""🏁 The quiz '{quiz_name}' has finished!\n\n{total_questions} questions answered\n\n{leaderboard_text}\n🏆 Congratulations to the winners!""",
+            reply_markup=buttons
+        )
         
 
         if PDF_REPORTS_ENABLED:
@@ -3358,7 +3352,11 @@ async def handle_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 
                 # Only the currently displayed poll can advance the quiz.
                 # This wakes the runner immediately instead of waiting for the timer.
-                
+                if poll_id == session.get("current_poll_id"):
+                    answer_event = group_answer_events.get(chat_id)
+                    if answer_event:
+                        logger.info(f"GROUP POLL ANSWER RECEIVED: chat={chat_id}, poll={poll_id}, user={user_id} -> advancing immediately")
+                        answer_event.set()
                 
                 await session_manager.update_session(chat_id, session)
                 break
