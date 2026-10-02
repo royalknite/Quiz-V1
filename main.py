@@ -823,7 +823,7 @@ async def send_quiz_page(client, message, quizzes, page_number, user_id, search_
             f"    - 📄 Type: {'Paid' if quiz.get('type') == 'paid' else 'Free'}\n"
             f"    - 👥 Users: {quiz.get('total_participation', 0)}\n"
             f"    - 🗽 Start: `/start {quiz.get('question_set_id', 'N/A')}`\n"
-            f"    - 🥊 Share: `@Xd_Quiz_Bot {quiz.get('question_set_id', 'N/A')}`\n"
+            f"    - 🥊 Share: `@Quick_QxBot {quiz.get('question_set_id', 'N/A')}`\n"
             f"    - 🖊️ Edit: `/edit {quiz.get('question_set_id', 'N/A')}`\n\n────────────────\n"
             for i, quiz in enumerate(current_page_quizzes)
         ]
