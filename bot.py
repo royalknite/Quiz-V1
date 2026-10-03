@@ -149,7 +149,7 @@ POLL_EXPLANATION_MAX_LENGTH = 200
 TRIM_LENGTH = 80
 
 # Report toggles: PDF has priority when both are enabled.
-PDF_REPORTS_ENABLED = True
+PDF_REPORTS_ENABLED = False 
 HTML_REPORTS_ENABLED = False
 
 # ═══════════════════════════════════════════════════════════════════════════
