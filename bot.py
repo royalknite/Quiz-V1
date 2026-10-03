@@ -39,6 +39,9 @@ from typing import Dict, Any, Optional, List, Set
 from collections import deque, defaultdict
 from contextlib import asynccontextmanager
 import logging
+
+# Set to True to show Restart Quiz / Compare Results buttons.
+SHOW_RESTART_COMPARE = False
 from logging.handlers import RotatingFileHandler
 import pymongo
 from pymongo import MongoClient
@@ -127,6 +130,8 @@ BOT_TOKEN  = os.getenv("BOT_TOKEN", "")   # PTB scheduler bot token (shared with
 MONGO_URI_1 = os.getenv("MONGO_URI", "")
 MONGO_URI_2 = os.getenv("MONGO_URI_2", "")
 
+OWNER_ID = list(map(int, os.getenv("OWNER_ID", "0").split()))
+
 MAX_CONCURRENT_POLLS = 5000  # Max polls per chat simultaneously
 POLL_SEND_DELAY = 0.1  # Delay between polls (anti-flood)
 DB_BATCH_SIZE = 100  # Batch size for DB operations
@@ -144,7 +149,7 @@ POLL_EXPLANATION_MAX_LENGTH = 200
 TRIM_LENGTH = 80
 
 # Report toggles: PDF has priority when both are enabled.
-PDF_REPORTS_ENABLED = False
+PDF_REPORTS_ENABLED = True
 HTML_REPORTS_ENABLED = False
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1599,6 +1604,7 @@ async def toggle_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(user.id) not in owner_ids:
         await update.effective_message.reply_text("🚫 You are not authorized to use this command.")
         return
+    PDF_REPORTS_ENABLED = not PDF_REPORTS_ENABLED
     if PDF_REPORTS_ENABLED:
         await update.effective_message.reply_text(
             "✅ PDF Reports ENABLED.\nUse /pdf again to disable."
@@ -1619,6 +1625,7 @@ async def toggle_html(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(user.id) not in owner_ids:
         await update.effective_message.reply_text("🚫 You are not authorized to use this command.")
         return
+    HTML_REPORTS_ENABLED = not HTML_REPORTS_ENABLED
     if HTML_REPORTS_ENABLED:
         await update.effective_message.reply_text(
             "✅ HTML Reports ENABLED.\nUse /html again to disable."
@@ -1734,13 +1741,14 @@ async def end_private_quiz(chat_id: int, context: ContextTypes.DEFAULT_TYPE):
 
         results_file = await save_quiz_results(quiz_data, chat_id, leaderboard)
         
-        start_link = f"https://t.me/Quick_QxBot?start={quiz_data['question_set_id']}"
-        compare_callback = f"compare_{quiz_data['question_set_id']}_{chat_id}"
-        
-        buttons = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔄 Restart Quiz", url=start_link)],
-            [InlineKeyboardButton("📊 Compare Results", callback_data=compare_callback)]
-        ])
+        buttons = None
+        if SHOW_RESTART_COMPARE:
+            start_link = f"https://t.me/Quick_QxBot?start={quiz_data['question_set_id']}"
+            compare_callback = f"compare_{quiz_data['question_set_id']}_{chat_id}"
+            buttons = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔄 Restart Quiz", url=start_link)],
+                [InlineKeyboardButton("📊 Compare Results", callback_data=compare_callback)]
+            ])
         
         quiz_name = escape_markdown(quiz_data.get('quiz_name', 'Unnamed Quiz'))
         
@@ -2372,6 +2380,7 @@ async def end_group_quiz(chat_id: int):
             leaderboard.append({
                 "user_id": user_id,
                 "name": user_data["name"],
+                "username": user_data.get("username"),
                 "correct": correct,
                 "wrong": wrong,
                 "score": score,
@@ -2410,46 +2419,50 @@ async def end_group_quiz(chat_id: int):
 
         results_file = await save_quiz_results(quiz_data, chat_id, leaderboard)
         
-        start_link = f"https://t.me/Quick_QxBot?start={quiz_id}"
-        compare_callback = f"compare_{quiz_id}_{chat_id}"
-        
-        buttons = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔄 Restart Quiz", url=start_link)],
-            [InlineKeyboardButton("📊 Compare Results", callback_data=compare_callback)]
-        ])
+        buttons = None
+        if SHOW_RESTART_COMPARE:
+            start_link = f"https://t.me/Quick_QzBot?start={quiz_id}"
+            compare_callback = f"compare_{quiz_id}_{chat_id}"
+            buttons = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔄 Restart Quiz", url=start_link)],
+                [InlineKeyboardButton("📊 Compare Results", callback_data=compare_callback)]
+            ])
         
 
-        for i in range(0, len(leaderboard), 15):
-            chunk = leaderboard[i:i+15]
+        # Send the final leaderboard in the requested simple format.
+        # Keep all participants; Telegram messages are split into safe chunks.
+        for i in range(0, len(leaderboard), 20):
+            chunk = leaderboard[i:i+20]
             leaderboard_text = ""
             
             for index, user in enumerate(chunk, start=i+1):
-                total_attempts = user["correct"] + user["wrong"]
-                percentage = (user["correct"] / total_questions) * 100 if total_questions else 0
-                accuracy = (user["correct"] / total_attempts) * 100 if total_attempts else 0
+                minutes, seconds = divmod(int(user["total_time"]), 60)
+                time_str = f"{minutes} min {seconds} sec"
                 
-                minutes, seconds = divmod(user["total_time"], 60)
-                time_str = f"{int(minutes)}m {int(seconds)}s"
+                score = user["score"]
+                if float(score).is_integer():
+                    score_str = str(int(score))
+                else:
+                    score_str = f"{score:.2f}"
                 
-                rank_icon = "🥇" if index == 1 else "🥈" if index == 2 else "🥉" if index == 3 else f"{index}."
-                
-                leaderboard_text += (
-                    f"{rank_icon} {user['name']} | ✅ {user['correct']} | ❌ {user['wrong']} | 🎯 {user['score']:.2f} | "
-                    f"⏱️ {time_str} | 📊 {percentage:.2f}% | 🚀 {accuracy:.2f}%\n"
-                    f"────────────────\n"
-                )
+                rank_icon = "🥇" if index == 1 else "🥈" if index == 2 else "🥉" if index == 3 else f"  {index}."
+                if user.get("username"):
+                    display_name = f"@{str(user['username']).lstrip('@')}"
+                else:
+                    display_name = user.get("name") or "Unknown User"
+                leaderboard_text += f"{rank_icon} {display_name} – {score_str} ({time_str})\n"
             
             if i == 0:
                 await safe_send_message(
                     context, chat_id,
-                    f"""🏆 Quiz '{quiz_name}' has ended!\n\n🎯 Top Performers:\n\n{leaderboard_text}""",
+                    f"""🏁 The quiz '{quiz_name}' has finished!\n\n{total_questions} questions answered\n\n{leaderboard_text}\n🏆 Congratulations to the winners!""",
                     reply_markup=buttons
                 )
             else:
-                await asyncio.sleep(4)
+                await asyncio.sleep(1)
                 await safe_send_message(
                     context, chat_id,
-                    f"""🏆 Quiz '{quiz_name}' has ended!\n\n🎯 Top Performers:\n\n{leaderboard_text}"""
+                    leaderboard_text
                 )
         
 
@@ -2779,7 +2792,7 @@ async def schedule_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         try:
             chat_member = await context.bot.get_chat_member(chat_id, user_id)
-            if chat_member.status not in ["administrator", "creator"]:
+            if user_id not in OWNER_ID and chat_member.status not in ["administrator", "creator"]:
                 await safe_send_message(
                     context, chat_id,
                     "🚫 You must be an admin to schedule a quiz."
@@ -3318,7 +3331,14 @@ async def handle_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE)
         poll_answer = update.poll_answer
         poll_id = poll_answer.poll_id
         user_id = poll_answer.user.id
-        user_name = poll_answer.user.first_name
+        user_username = getattr(poll_answer.user, "username", None)
+        user_full_name = " ".join(
+            part for part in [
+                getattr(poll_answer.user, "first_name", None),
+                getattr(poll_answer.user, "last_name", None),
+            ]
+            if part
+        ).strip() or "Unknown User"
         
         if not poll_answer.option_ids:
             return
@@ -3343,7 +3363,8 @@ async def handle_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE)
             if poll_id in session.get("polls", {}):
                 if user_id not in session["participants"]:
                     session["participants"][user_id] = {
-                        "name": user_name,
+                        "name": user_full_name,
+                        "username": user_username,
                         "answers": {}
                     }
                 
@@ -3354,11 +3375,7 @@ async def handle_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 
                 # Only the currently displayed poll can advance the quiz.
                 # This wakes the runner immediately instead of waiting for the timer.
-                if poll_id == session.get("current_poll_id"):
-                    answer_event = group_answer_events.get(chat_id)
-                    if answer_event:
-                        logger.info(f"GROUP POLL ANSWER RECEIVED: chat={chat_id}, poll={poll_id}, user={user_id} -> advancing immediately")
-                        answer_event.set()
+                
                 
                 await session_manager.update_session(chat_id, session)
                 break
