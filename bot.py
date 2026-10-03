@@ -1604,7 +1604,6 @@ async def toggle_pdf(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(user.id) not in owner_ids:
         await update.effective_message.reply_text("🚫 You are not authorized to use this command.")
         return
-    PDF_REPORTS_ENABLED = not PDF_REPORTS_ENABLED
     if PDF_REPORTS_ENABLED:
         await update.effective_message.reply_text(
             "✅ PDF Reports ENABLED.\nUse /pdf again to disable."
@@ -1625,7 +1624,6 @@ async def toggle_html(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if str(user.id) not in owner_ids:
         await update.effective_message.reply_text("🚫 You are not authorized to use this command.")
         return
-    HTML_REPORTS_ENABLED = not HTML_REPORTS_ENABLED
     if HTML_REPORTS_ENABLED:
         await update.effective_message.reply_text(
             "✅ HTML Reports ENABLED.\nUse /html again to disable."
