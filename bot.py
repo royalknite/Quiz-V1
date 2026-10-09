@@ -811,13 +811,9 @@ def format_statement_question(text: str) -> str:
     # Only process if the text actually contains statement-style markers
     if not re.search(r'(?:I{1,3}|IV|VI{0,3}|IX)\.\s', text):
         return text
-    # Split before EVERY inline Roman-numeral statement label, not only the first.
-    # Keep the first label in place if the question itself starts with a statement.
-    return re.sub(
-        r'\s+(?=(?:I{1,3}|IV|VI{0,3}|IX)\.\s)',
-        '\n',
-        text.strip(),
-    )
+    # Insert newline before each inline statement label
+    result = _STMT_NEWLINE_RE.sub(lambda m: m.group(1).rstrip() + '\n' + m.group(2), text)
+    return result
 
 
 def is_statement_question(text: str) -> bool:
@@ -854,56 +850,23 @@ def needs_full_card(text: str) -> bool:
 
 
 def format_matching_question(text: str) -> str:
-    """Format matching pairs as a readable boxed two-column table.
-
-    Input remains compatible with the existing AI format (one ``left → right``
-    pair per line). Non-pair text and the question's original ordering are kept.
-    This is plain Unicode text, so it works in Telegram messages without HTML
-    or Markdown parse modes.
-    """
+    """Ensure each Item → Match pair is on its own line."""
     if '→' not in text:
         return text
-
     lines = text.split('\n')
-    output = []
-    pairs = []
-
-    def flush_pairs():
-        if not pairs:
-            return
-        left_width = max(len(left) for left, _ in pairs)
-        right_width = max(len(right) for _, right in pairs)
-        # Keep the table readable on mobile while retaining the full pair text.
-        output.append('┌' + '─' * (left_width + 2) + '┬' + '─' * (right_width + 2) + '┐')
-        for left, right in pairs:
-            output.append('│ ' + left.ljust(left_width) + ' │ ' + right.ljust(right_width) + ' │')
-        output.append('└' + '─' * (left_width + 2) + '┴' + '─' * (right_width + 2) + '┘')
-        pairs.clear()
-
+    result = []
     for line in lines:
         stripped = line.strip()
         if not stripped:
-            flush_pairs()
-            output.append('')
+            result.append('')
             continue
-        # Split jammed pairs before parsing them.
-        parts = [stripped]
+        # If multiple → pairs are jammed on one line, split them
         if stripped.count('→') > 1:
-            parts = re.split(r'\s+(?=[^\s]+\s*→)', stripped)
-        for part in parts:
-            if '→' in part:
-                left, right = part.split('→', 1)
-                left, right = left.strip(), right.strip()
-                if left and right:
-                    pairs.append((left, right))
-                else:
-                    flush_pairs()
-                    output.append(part.strip())
-            else:
-                flush_pairs()
-                output.append(part.strip())
-    flush_pairs()
-    return '\n'.join(output)
+            parts = re.split(r'(?<=[^\s])\s+(?=\S.*?→)', stripped)
+            result.extend(parts)
+        else:
+            result.append(stripped)
+    return '\n'.join(result)
 
 
 _POLL_INSTR_RE = re.compile(

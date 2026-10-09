@@ -487,8 +487,7 @@ Based strictly on the USER CONFIGURATION below, process the input.
       Ex: brief explanation
 
       Rules:
-      - Each Item → Match pair MUST appear on its own separate line; the bot renders these pairs as a clean boxed two-column table in Telegram.
-      - Keep the left-side item and right-side match text short and complete; do not combine multiple pairs on one line.
+      - Each Item → Match pair MUST appear on its own separate line.
       - NEVER compress all items into a single line.
       - The [ Poll : [N/T] ] marker must appear on its own line, with nothing else on that line.
       - [ Poll : [N/T] ] is ONLY for this question type, never for Statement or Direct types.
